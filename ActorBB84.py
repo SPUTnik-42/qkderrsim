@@ -266,12 +266,14 @@ def calculate_metrics(reference_key, subject_key, num_input_qubits, sample_size=
 
     # Calculate number of bits to sample
     if sample_size is not None:
+        k = n_sifted
+    else:
         k = int(n_sifted * sample_size)
 
     # New fix: Ensure at least 30 bits are checked
-    k = max(30, int(n_sifted * sample_size))
+    #k = max(30, int(n_sifted * sample_size))
         
-    k = max(1, min(k, n_sifted))
+    #k = max(1, min(k, n_sifted))
 
     if k < n_sifted:
         rng = random.Random(seed) if seed is not None else random
@@ -491,9 +493,9 @@ async def run_efficiency_experiment():
     print("="*80)
     
     # Parameters for the continuous graph
-    start_err = 0.01
+    start_err = 0
     end_err = 0.2
-    num_points = 60
+    num_points = 200
     
     # Generate finer-grained error rates to create a continuous look
     step_size = (end_err - start_err) / num_points
@@ -509,10 +511,11 @@ async def run_efficiency_experiment():
         # Run simulation with 10k qubits to get stable statistics
         res = await run_simulation_instance(
             num_qubits=10000, 
-            include_eve=False, 
+            include_eve=True, 
             verbose=False, 
             error_correction=cascade_engine,
-            optical_error_rate=err
+            optical_error_rate=err,
+            qber_sample_size=0.1 # Full key for accuracy
         )
         
         N = res['ec_revealed_bits']  # Total bits revealed
@@ -525,7 +528,7 @@ async def run_efficiency_experiment():
             if h_eps > 0:
                 eff = N / (K * h_eps)
                 # Filter outliers or division artifacts near 0
-                if eff > 0.5 and eff < 10: 
+                if eff :# > 0.5 and eff < 10: 
                     efficiencies.append(eff)
                     observed_qbers.append(eps)
                     print(f"OpticalErr: {err:.4f} | QBER: {eps:.4f} | Leaked: {N}/{K} | Eff: {eff:.4f}")

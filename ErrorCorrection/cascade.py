@@ -77,7 +77,7 @@ class CascadeProtocol:
             parity_list[i] = p_val
             
             # Increment bits revealed for every parity bit calculated/exposed
-            self.bits_revealed += 1
+            #self.bits_revealed += 1
 
         if is_single_list:
             return parity_list[0]
@@ -104,6 +104,8 @@ class CascadeProtocol:
             
             # "Alice computes Alice_parity"
             Alice_parity = self.parity(self.P_int, check_list_1)
+            #####!!!!!!
+            self.bits_revealed += 1
             
             # "Alice sends Alice_parity to Bob" -> Part of the ask-reply round trip
             
@@ -195,6 +197,8 @@ class CascadeProtocol:
 
             # "Alice computes Alice_parity_list"
             Alice_parity_list = self.parity(self.P_int, block_index_lists)
+            ###############!!!!!!!!!!!!!!!!!!!!!!!!
+            self.bits_revealed += len(Alice_parity_list)
             
             # "Alice sends Alice_parity_list to Bob"
             
