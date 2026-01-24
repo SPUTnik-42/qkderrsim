@@ -1,15 +1,23 @@
+
 import math
 import random
+import asyncio
+from typing import List, Protocol, Any
 
-class CascadeProtocol:
-    def __init__(self, num_passes=4,  verbose=True): #initial_block_size=8,
+class ParityOracle(Protocol):
+    async def get_parity(self, indices: List[int]) -> int:
+        ...
+    
+    async def get_parities(self, blocks: List[List[int]]) -> List[int]:
+        ...
+
+class CascadeClientProtocol:
+    def __init__(self, num_passes=4, verbose=True):
         self.num_passes = num_passes
-        # self.initial_block_size = initial_block_size
         self.verbose = verbose
         
-        # Global variables as defined in the algorithm
+        # Global variables
         self.N = 0
-        self.P_int = 0
         self.Q_int = 0
         self.net_block_index_lists = {}
         
@@ -17,77 +25,39 @@ class CascadeProtocol:
         self.bits_revealed = 0
         self.total_errors_corrected = 0
         self.channel_uses = 0
+        self.oracle = None
 
     def log(self, message):
         if self.verbose:
             print(message)
 
     def _deterministic_shuffle(self, data, seed):
-        """
-        Deterministic shuffle to simulate random_shuffle() in the algorithm.
-        """
         rng = random.Random(seed)
         shuffled_data = list(data)
         rng.shuffle(shuffled_data)
         return shuffled_data
 
-    def parity(self, Z_int, key_index_lists):
-        """
-        Algorithm 1: Parity
-        """
-        # If input is a single list, wrap it in a list to treat it uniformly
-        # The algorithm implies key_index_lists is a list of lists.
-        # However, binary() calls it with a single list.
-        # We handle both cases to match the polymorphic nature of the pseudo-code.
-        is_single_list = False
-        if not key_index_lists:
-            return []
-        if isinstance(key_index_lists[0], int):
-            key_index_lists = [key_index_lists]
-            is_single_list = True
+    def calculate_local_parity(self, key_int: int, key_indices: List[int]) -> int:
+        p_val = 0
+        for idx in key_indices:
+            # key_int has bit 0 at LSB. 
+            # If we assume key[0] is MSB, then we need to access N - 1 - idx
+            # If we assume key[0] is LSB, then we access idx
+            # The original code did: (Z_int >> (N - 1 - idx))
+            # I will preserve that logic.
+            shift = self.N - 1 - idx
+            bit = (key_int >> shift) & 1
+            p_val = p_val ^ bit
+        return p_val
 
-        N_l = len(key_index_lists)
-        parity_list = [0] * N_l
-        
-        for i in range(N_l):
-            # In Python, we don't need to invert indices (N - 1 - index) unless 
-            # specifically matching a hardware implementation direction.
-            # The algorithm says: key_index_lists[i][j] <- N - 1 - key_index_lists[i][j]
-            # This reverses bit significance order (LSB vs MSB). 
-            # We will follow the algorithm strictly.
-            
-            # Create a copy to avoid modifying the original list in place during calculation if needed,
-            # but the algorithm modifies it.
-            # "key_index_lists[i][j] <- N - 1 - ..." implies modification.
-            # However, Z_int >> k assumes k is the shift amount.
-            # If we invert k, we might be looking at the wrong bit if Z_int is standard integer.
-            # Standard python int: bit 0 is LSB. 
-            # If the algorithm considers index 0 as left-most (MSB), this inversion maps it to LSB.
-            
-            current_indices = []
-            for idx in key_index_lists[i]:
-                # implementing: N - 1 - index
-                current_indices.append(self.N - 1 - idx)
-            
-            p_val = 0
-            for k in current_indices:
-                bit = (Z_int >> k) & 1
-                p_val = p_val ^ bit # XOR is equivalent to parity addition
-            
-            parity_list[i] = p_val
-            
-            # Increment bits revealed for every parity bit calculated/exposed
-            #self.bits_revealed += 1
+    def calculate_local_parities(self, key_int: int, blocks: List[List[int]]) -> List[int]:
+        return [self.calculate_local_parity(key_int, block) for block in blocks]
 
-        if is_single_list:
-            return parity_list[0]
-        return parity_list
-
-    def binary(self, block_index_list, pass_num):
+    async def binary(self, block_index_list, pass_num):
         """
-        Algorithm 2: BINARY
+        Algorithm 2: BINARY (Client Side)
         """
-        self.log(f"  [BINARY] Starting binary search on block of size {len(block_index_list)}")
+        # self.log(f"  [BINARY] Starting binary search on block of size {len(block_index_list)}")
         
         beg = 0
         end = len(block_index_list) - 1
@@ -99,27 +69,27 @@ class CascadeProtocol:
             check_list_1 = block_index_list[beg : mid + 1]
             check_list_2 = block_index_list[mid + 1 : end + 1]
             
-            # "Bob sends check_list_1 to Alice" -> Channel Use
+            # Bob (Client) sends check_list_1 to Alice (Server) -> Channel Use
             self.channel_uses += 1
             
-            # "Alice computes Alice_parity"
-            Alice_parity = self.parity(self.P_int, check_list_1)
-            #####!!!!!!
+            # Ask Alice for parity
+            alice_parity = await self.oracle.get_parity(check_list_1)
             self.bits_revealed += 1
             
-            # "Alice sends Alice_parity to Bob" -> Part of the ask-reply round trip
+            # Compute local parity
+            bob_parity = self.calculate_local_parity(self.Q_int, check_list_1)
             
-            Bob_parity = self.parity(self.Q_int, check_list_1)
-            
-            if Bob_parity != Alice_parity:
-                self.log(f"    [BINARY] Parity mismatch in left half ({beg}-{mid}). Recursing left.")
+            if bob_parity != alice_parity:
+                if self.verbose:
+                    self.log(f"    [BINARY] Mismatch in subset ({len(check_list_1)} bits). Searching left.")
                 end = mid
                 # Append check_list_2 to net_block_index_lists[pass_num]
                 if pass_num not in self.net_block_index_lists:
                     self.net_block_index_lists[pass_num] = []
                 self.net_block_index_lists[pass_num].append(check_list_2)
             else:
-                self.log(f"    [BINARY] Parity match in left half. Error in right half ({mid+1}-{end}). Recursing right.")
+                if self.verbose:
+                    self.log(f"    [BINARY] Match in subset. Error in right half ({len(check_list_2)} bits). Searching right.")
                 beg = mid + 1
                 # Append check_list_1 to net_block_index_lists[pass_num]
                 if pass_num not in self.net_block_index_lists:
@@ -127,33 +97,29 @@ class CascadeProtocol:
                 self.net_block_index_lists[pass_num].append(check_list_1)
         
         bit_flip_index = block_index_list[beg]
-        self.log(f"  [BINARY] Found error at index: {bit_flip_index}")
+        if self.verbose:
+             current_bit = (self.Q_int >> (self.N - 1 - bit_flip_index)) & 1
+             self.log(f"  [FIXED] Found error at index {bit_flip_index}. Flipping bit {current_bit} -> {1-current_bit}")
         return bit_flip_index
 
-    def run(self, P_key, Q_key, qber):
+    async def run(self, Q_key: List[int], qber: float, oracle: ParityOracle):
         """
-        The Cascade Protocol Algorithm
-        Arguments:
-            P_key: Alice's key (List[int])
-            Q_key: Bob's key (List[int])
-            qber: Quantum Bit Error Rate (float)
+        The Cascade Protocol Algorithm (Client Logic)
         """
-        self.log(f"Starting Cascade Protocol with {self.num_passes} passes.")
+        self.log(f"Starting Cascade Protocol (Client) with {self.num_passes} passes.")
+        if self.verbose:
+            preview = "".join(map(str, Q_key[:50]))
+            self.log(f"Initial Key (First 50 bits): {preview}...")
         
-        # Inputs must be list of ints
-        P_str = "".join(map(str, P_key))
+        self.oracle = oracle
+        
         Q_str = "".join(map(str, Q_key))
-
-        # Reset Global Variables
-        self.N = len(P_key)
-        self.P_int = int(P_str, 2)
+        self.N = len(Q_key)
         self.Q_int = int(Q_str, 2)
-        self.net_block_index_lists = {} # Using dict for sparse array behavior
+        self.net_block_index_lists = {}
 
-        # errors = sum(1 for a, b in zip(P_str, Q_str) if a != b)
         if qber is None:
             raise ValueError("Missing required parameter: qber must be provided.")
-        
         
         # Reset Metrics
         self.bits_revealed = 0
@@ -166,16 +132,13 @@ class CascadeProtocol:
             self.log(f"\n--- Pass {i} ---")
             
             if i > 1:
-                key_index_list = self._deterministic_shuffle(key_index_list, seed=i)
+                key_index_list = self._deterministic_shuffle(key_index_list, seed=i) # Assuming Alice does same? YES.
                 self.log(f"  Shuffled key indices.")
 
-            # Calculate block size k. 
-            # Algorithm: k <- f(p). Assuming standard doubling strategy or fixed initial.
-            # Using simple doubling strategy: k = initial * 2^(i-1)
             if i == 1:
-                k = int(0.73 / qber if 1 > qber > 0  else 9) # Avoid division by zero and extreme qber
+                k = int(0.73 / qber if 1 > qber > 0  else 9)
             else:
-                k = k * (2 ** (i - 1)) #self.initial_block_size * (2 ** (i - 1))
+                k = k * (2 ** (i - 1))
             
             self.log(f"  Block size k: {k}")
 
@@ -188,35 +151,32 @@ class CascadeProtocol:
             for l in range(1, num_blocks + 1):
                 start_idx = (l - 1) * k
                 end_idx = min(l * k, self.N)
-                # python slice is exclusive at end, algorithm implies inclusive range logic
                 block = key_index_list[start_idx : end_idx]
                 block_index_lists.append(block)
 
+            # Bob sends all block definitions (implicitly or explicitly) to Alice.
+            # In 'Parity API', he sends lists of indices.
             # "Bob sends block_index_lists to Alice" -> Channel Use (Bulk send)
             self.channel_uses += 1
-
-            # "Alice computes Alice_parity_list"
-            Alice_parity_list = self.parity(self.P_int, block_index_lists)
-            ###############!!!!!!!!!!!!!!!!!!!!!!!!
-            self.bits_revealed += len(Alice_parity_list)
             
-            # "Alice sends Alice_parity_list to Bob"
+            # API Call: Get parities for ALL blocks
+            alice_parity_list = await self.oracle.get_parities(block_index_lists)
+            self.bits_revealed += len(alice_parity_list)
             
-            Bob_parity_list = self.parity(self.Q_int, block_index_lists)
+            # Compute local parities
+            bob_parity_list = self.calculate_local_parities(self.Q_int, block_index_lists)
             
             # Find blocks with odd error parity
-            odd_error_parity_block_index_list = [] # stores indices j
-            for j in range(len(Alice_parity_list)):
-                if Alice_parity_list[j] != Bob_parity_list[j]:
+            odd_error_parity_block_index_list = [] 
+            for j in range(len(alice_parity_list)):
+                if alice_parity_list[j] != bob_parity_list[j]:
                     odd_error_parity_block_index_list.append(j)
             
             self.log(f"  Blocks with odd parity errors: {len(odd_error_parity_block_index_list)} / {len(block_index_lists)}")
 
             # Add correct blocks to net_block_index_lists
-            # Algorithm: range([0 ... ceil(N/k)-1] \ odd_error...)
             all_block_indices = set(range(len(block_index_lists)))
             correct_block_indices = all_block_indices - set(odd_error_parity_block_index_list)
-            
             for j in correct_block_indices:
                 self.net_block_index_lists[i].append(block_index_lists[j])
 
@@ -226,10 +186,9 @@ class CascadeProtocol:
             # Process bad blocks
             for j in odd_error_parity_block_index_list:
                 self.log(f"  Correcting error in block {j}...")
-                bit_flip_index = self.binary(block_index_lists[j], i)
+                bit_flip_index = await self.binary(block_index_lists[j], i)
                 
                 # Flip bit in Q_int
-                # Q_int <- Q_int XOR (1 << (N - bit_flip_index - 1))
                 mask = 1 << (self.N - bit_flip_index - 1)
                 self.Q_int = self.Q_int ^ mask
                 self.total_errors_corrected += 1
@@ -244,7 +203,7 @@ class CascadeProtocol:
                 
                 # Identify previous blocks containing the flipped bits
                 for bit_flip_idx in net_index_list_for_bit_flip:
-                    for m in range(i - 1, 0, -1): # i-1 down to 1
+                    for m in range(i - 1, 0, -1): 
                          if m in self.net_block_index_lists:
                              for sub_list in self.net_block_index_lists[m]:
                                  if bit_flip_idx in sub_list:
@@ -252,11 +211,8 @@ class CascadeProtocol:
                                          net_check_block_index_lists.append(sub_list)
                 
                 while len(net_check_block_index_lists) > 0:
-                    # check_block_index_list <- min_length(net_check_block_index_lists)
-                    # Find smallest block
                     check_block_index_list = min(net_check_block_index_lists, key=len)
                     
-                    # check_block_pass_num <- Key which ^ check_block in net_block_index_lists
                     check_block_pass_num = -1
                     for m_key, lists in self.net_block_index_lists.items():
                         if check_block_index_list in lists:
@@ -266,8 +222,6 @@ class CascadeProtocol:
                     net_check_block_index_lists.remove(check_block_index_list)
                     
                     parity_check = 0
-                    
-                    # Check how many errors corrected so far are in this block
                     for error_index in complete_index_list_for_bit_flip:
                         if error_index in check_block_index_list:
                             parity_check += 1
@@ -275,15 +229,12 @@ class CascadeProtocol:
                     if parity_check % 2 != 0:
                         self.log(f"    [CASCADE] Re-evaluating block from Pass {check_block_pass_num} (len {len(check_block_index_list)})")
                         
-                        # Remove from known good blocks
                         if check_block_pass_num != -1:
                             if check_block_index_list in self.net_block_index_lists[check_block_pass_num]:
                                 self.net_block_index_lists[check_block_pass_num].remove(check_block_index_list)
                         
-                        # Binary search to find new error
-                        new_bit_flip_index = self.binary(check_block_index_list, check_block_pass_num)
+                        new_bit_flip_index = await self.binary(check_block_index_list, check_block_pass_num)
                         
-                        # Flip bit
                         mask = 1 << (self.N - new_bit_flip_index - 1)
                         self.Q_int = self.Q_int ^ mask
                         self.total_errors_corrected += 1
@@ -292,7 +243,6 @@ class CascadeProtocol:
                         
                         check_block_new_additions = []
                         
-                        # Look for other blocks affected by this new flip
                         for m in range(i, 0, -1):
                             if m != check_block_pass_num:
                                 if m in self.net_block_index_lists:
@@ -308,19 +258,3 @@ class CascadeProtocol:
         corrected_key_str = format(self.Q_int, f'0{self.N}b')
         corrected_key = [int(b) for b in corrected_key_str]
         return corrected_key, self.bits_revealed, self.total_errors_corrected, self.channel_uses
-
-# Example Usage:
-if __name__ == "__main__":
-    alice_str = "10110101" * 8
-    bob_str   = "10110100" * 8 # Last bit flipped
-    
-    alice_key = [int(x) for x in alice_str]
-    bob_key   = [int(x) for x in bob_str]
-
-    protocol = CascadeProtocol(num_passes=4)
-    result_key, bits, errors, channels = protocol.run(alice_key, bob_key, qber=0.125)
-    
-    print(f"\nFinal Key Match: {result_key == alice_key}")
-    print(f"Bits Revealed: {bits}")
-    print(f"Errors Corrected: {errors}")
-    print(f"Channel Uses: {channels}")

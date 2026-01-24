@@ -259,101 +259,53 @@ def sift_keys(alice_sent_log, bob_received_log, verbose=False) -> Tuple[List[int
         
     return sifted_alice, sifted_bob
 
-# def calculate_metrics(reference_key, subject_key, num_input_qubits, sample_size=0.1, seed=None):
-#     n_sifted = len(reference_key)
-#     if n_sifted == 0:
-#         return {"qber": 0.0, "yield": 0.0, "length": 0, "errors": 0}
-
-#     # Calculate number of bits to sample
-#     if sample_size is not None:
-#         k = n_sifted
-#     else:
-#         k = int(n_sifted * sample_size)
-
-#     # New fix: Ensure at least 30 bits are checked
-#     #k = max(30, int(n_sifted * sample_size))
-        
-#     #k = max(1, min(k, n_sifted))
-
-#     if k < n_sifted:
-#         rng = random.Random(seed) if seed is not None else random
-#         indices = rng.sample(range(n_sifted), k)
-#         errors = sum(1 for i in indices if reference_key[i] != subject_key[i])
-#         qber = errors / k
-#     else:
-#         errors = sum(1 for a, b in zip(reference_key, subject_key) if a != b)
-#         qber = errors / n_sifted
-
-#     yield_rate = n_sifted / num_input_qubits if num_input_qubits > 0 else 0.0
-    
-#     return {
-#         "qber": qber,
-#         "qber_sampled": k,
-#         "yield": yield_rate,
-#         "length": n_sifted,
-#         "errors": errors
-#     }
-
-
 def calculate_metrics(reference_key, subject_key, num_input_qubits, sample_size=0.1, seed=None):
     n_sifted = len(reference_key)
     if n_sifted == 0:
-        return {"qber": 0.0, "yield": 0.0, "length": 0, "errors": 0}, [], []
+        return {"qber": 0.0, "yield": 0.0, "length": 0, "errors": 0}
 
     # Calculate number of bits to sample
-
-    k = int(n_sifted * sample_size)
-    
-    # Ensure bounds
-    k = max(0, min(k, n_sifted))
-
-    rng = PRNG(seed) if seed is not None else random.Random()
-    
-    # Select indices to sample (publicly reveal)
-    indices_to_check = set(rng.sample(range(n_sifted), k))
-    
-    # Calculate errors on sampled bits
-    errors = 0
-    for idx in indices_to_check:
-        if reference_key[idx] != subject_key[idx]:
-            errors += 1
-            
-    qber = errors / k if k > 0 else 0.0
-    
-    # Create remaining keys (discarding sampled bits)
-    # These are the bits kept private for the final key
-    if k!=1:
-        rem_ref = [bit for i, bit in enumerate(reference_key) if i not in indices_to_check]
-        rem_sub = [bit for i, bit in enumerate(subject_key) if i not in indices_to_check]
+    if sample_size is not None:
+        k = n_sifted
     else:
-        rem_ref = reference_key
-        rem_sub = subject_key
-    # Yield is based on remaining bits
-    yield_rate = len(rem_ref) / num_input_qubits if num_input_qubits > 0 else 0.0
+        k = int(n_sifted * sample_size)
+
+    # New fix: Ensure at least 30 bits are checked
+    #k = max(30, int(n_sifted * sample_size))
+        
+    #k = max(1, min(k, n_sifted))
+
+    if k < n_sifted:
+        rng = random.Random(seed) if seed is not None else random
+        indices = rng.sample(range(n_sifted), k)
+        errors = sum(1 for i in indices if reference_key[i] != subject_key[i])
+        qber = errors / k
+    else:
+        errors = sum(1 for a, b in zip(reference_key, subject_key) if a != b)
+        qber = errors / n_sifted
+
+    yield_rate = n_sifted / num_input_qubits if num_input_qubits > 0 else 0.0
     
-    metrics = {
+    return {
         "qber": qber,
         "qber_sampled": k,
         "yield": yield_rate,
-        "length": len(rem_ref),
+        "length": n_sifted,
         "errors": errors
     }
-    
-    return metrics, rem_ref, rem_sub
-
 
 # --- Core Simulation Wrapper ---
 
 async def run_simulation_instance(num_qubits=100, include_eve=False, verbose=True, 
                                   error_correction=None, optical_error_rate=0.01,
-                                  qber_sample_size=0.2, eve_intercept_rate=0.3):
+                                  qber_sample_size=0.1, eve_intercept_rate=0.1):
     if verbose:
         print("="*60)
         print(f"STARTING SIMULATION: {num_qubits} Qubits | Eve={include_eve}")
         print("="*60)
     
     # Master PRNG to generate deterministic seeds for actors from a single seed
-    master_seed = 333
+    master_seed = 42
     
     # Generate actor seeds
     seed_bob = master_seed + 1
@@ -366,8 +318,8 @@ async def run_simulation_instance(num_qubits=100, include_eve=False, verbose=Tru
     LENGTH_KM = 50       
     ATTENUATION = 0.2 
     OPTICAL_ERROR = optical_error_rate # Use parameter instead of hardcoded value
-    DETECTOR_EFF = 0.8 
-    DARK_COUNT = 0.01   
+    DETECTOR_EFF = 0.8    
+    DARK_COUNT = 0.05   
 
     bob = Bob("Bob", seed=seed_bob)
     detector = Detector("BobSPD", DETECTOR_EFF, DARK_COUNT, bob, seed=seed_detector)
@@ -394,32 +346,29 @@ async def run_simulation_instance(num_qubits=100, include_eve=False, verbose=Tru
     # 1. Sifting
     sift_alice, sift_bob = sift_keys(alice.sent_log, bob.received_log, verbose=verbose)
     
-     # Calculate Raw Metrics AND discard sampled bits
-    raw_metrics, sift_alice_clean, sift_bob_clean = calculate_metrics(sift_alice, sift_bob, num_qubits, sample_size=qber_sample_size, seed=seed_metrics)
+    # Calculate Raw Metrics
+    raw_metrics = calculate_metrics(sift_alice, sift_bob, num_qubits, sample_size=qber_sample_size, seed=seed_metrics)
     
     if verbose:
         print(f"\n[METRICS - RAW]")
-        print(f"  Sifted Length : {len(sift_alice)} (Pre-sampling)")
+        print(f"  Sifted Length : {raw_metrics['length']}")
         print(f"  Sampled Size   : {raw_metrics['qber_sampled']}")
         print(f"  Bit Errors    : {raw_metrics['errors']}")
         print(f"  QBER (Raw)    : {raw_metrics['qber']:.4%}")
-        print(f"  Remaining Key : {raw_metrics['length']} (Post-sampling)")
 
-    final_key_bob = list(sift_bob_clean)
+    final_key_bob = list(sift_bob)
     ec_stats = {"corrected": 0, "revealed": 0, "channel_uses": 0}
 
     # 2. Error Correction
-    # Note: We now use the 'clean' keys (bits NOT revealed during parameter estimation)
-    if error_correction and len(sift_alice_clean) > 0:
-        final_key_bob, revealed, corrected, channel_uses = error_correction.run(sift_alice_clean, sift_bob_clean, qber=raw_metrics['qber'])
+    if error_correction and len(sift_alice) > 0:
+        final_key_bob, revealed, corrected, channel_uses = error_correction.run(sift_alice, sift_bob, qber=raw_metrics['qber'])
         ec_stats["corrected"] = corrected
         ec_stats["revealed"] = revealed
         ec_stats["channel_uses"] = channel_uses
 
     # Calculate Final Metrics
-    # Compare the CLEAN Alice key vs the CORRECTED Bob key
-    final_metrics, _, _ = calculate_metrics(sift_alice_clean, final_key_bob, num_qubits, sample_size=1, seed=seed_metrics)
-    # Do we use sample size for the final key too??? NO.
+    final_metrics = calculate_metrics(sift_alice, final_key_bob, num_qubits, sample_size=qber_sample_size, seed=seed_metrics)
+    # Do we use sample size for the final key too???
 
     if verbose:
         print(f"\n[METRICS - FINAL]")
@@ -431,7 +380,7 @@ async def run_simulation_instance(num_qubits=100, include_eve=False, verbose=Tru
         print(f"  Channel Uses  : {ec_stats['channel_uses']}")
         
         # Print comparison table
-        print_key_comparison_table(sift_alice_clean, sift_bob_clean, final_key_bob, indices_to_show=25)
+        print_key_comparison_table(sift_alice, sift_bob, final_key_bob, indices_to_show=25)
 
     return {
         "raw_qber": raw_metrics["qber"],
@@ -450,7 +399,7 @@ async def run_plotting_experiment():
     print("STARTING EXTENDED PLOTTING EXPERIMENT")
     print("="*80)
     
-    qubit_counts = [100, 1000, 10000,100000, 1000000, 1000000]
+    qubit_counts = [100, 500, 1000, 5000, 10000, 20000, 50000,100000, 200000, 500000, 1000000]
     cascade_engine = Cascade(num_passes=4)
     
     # Storage for data
@@ -485,9 +434,9 @@ async def run_plotting_experiment():
     # Graph 1: The "Eve Effect" (QBER Comparison)
     plt.figure(figsize=(10, 6))
     plt.plot(data_safe["counts"], data_safe["qber"], 'o-', color='green', label='No Eve (Safe)')
-    plt.plot(data_attacked["counts"], data_attacked["qber"], 'x--', color='red', label='With Eve (Attacked=0.2)')
+    plt.plot(data_attacked["counts"], data_attacked["qber"], 'x--', color='red', label='With Eve (Attacked)')
     plt.xscale('log')
-    plt.xlabel('Input Count')
+    plt.xlabel('Input Qubit Count')
     plt.ylabel('Raw Quantum Bit Error Rate (QBER) %')
     plt.title('Impact of Eavesdropping on Error Rate')
     plt.legend()
@@ -544,7 +493,7 @@ async def run_efficiency_experiment():
     print("="*80)
     
     # Parameters for the continuous graph
-    start_err = 0#.001
+    start_err = 0
     end_err = 0.2
     num_points = 200
     
@@ -566,7 +515,7 @@ async def run_efficiency_experiment():
             verbose=False, 
             error_correction=cascade_engine,
             optical_error_rate=err,
-            qber_sample_size=0.2 
+            qber_sample_size=0.1 # Full key for accuracy
         )
         
         N = res['ec_revealed_bits']  # Total bits revealed
@@ -737,7 +686,7 @@ if __name__ == "__main__":
     print("Running Detailed Log Instance...")
     cascade_single = Cascade(num_passes=4)
     asyncio.run(run_simulation_instance(
-        num_qubits=10000, 
+        num_qubits=5000, 
         include_eve=True, 
         verbose=True, 
         error_correction=cascade_single
@@ -753,5 +702,5 @@ if __name__ == "__main__":
     # # 4. Run the NEW Channel Uses experiment
     # asyncio.run(run_channel_uses_experiment())
 
-    # 5. Run the NEW Eve Intercept vs QBER experiment
-    asyncio.run(run_intercept_vs_qber_experiment())
+    # # 5. Run the NEW Eve Intercept vs QBER experiment
+    # asyncio.run(run_intercept_vs_qber_experiment())
