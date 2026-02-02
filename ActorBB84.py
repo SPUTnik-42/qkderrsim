@@ -744,14 +744,14 @@ if __name__ == "__main__":
     ))
 
       
-    # # 2. Run the original plotting experiment
-    # asyncio.run(run_plotting_experiment())
+    # 2. Run the original plotting experiment
+    asyncio.run(run_plotting_experiment())
 
-    # # 3. Run the Efficiency experiment
-    # asyncio.run(run_efficiency_experiment())
+    # 3. Run the Efficiency experiment
+    asyncio.run(run_efficiency_experiment())
 
-    # # 4. Run the NEW Channel Uses experiment
-    # asyncio.run(run_channel_uses_experiment())
+    # 4. Run the NEW Channel Uses experiment
+    asyncio.run(run_channel_uses_experiment())
 
     # 5. Run the NEW Eve Intercept vs QBER experiment
     asyncio.run(run_intercept_vs_qber_experiment())

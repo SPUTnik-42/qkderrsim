@@ -9,6 +9,7 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
 from ErrorCorrection.cascade import CascadeProtocol as OriginalCascade
 from ServerClientBB84.cascade_refactored import CascadeClientProtocol as RefactoredCascade
+from ServerClientBB84.prng import PRNG
 
 class MockAliceOracle:
     """
@@ -36,16 +37,16 @@ class MockAliceOracle:
     async def get_parities(self, blocks):
         return [self.calculate_parity(block) for block in blocks]
 
-def generate_keys(n, qber):
+def generate_keys(n, qber, prng: PRNG):
     """
     Generate Alice's key and Bob's key with a certain QBER.
     """
-    alice_key = [random.randint(0, 1) for _ in range(n)]
+    alice_key = [prng.get_bit() for _ in range(n)]
     bob_key = list(alice_key)
     
     # Introduce errors
     num_errors = int(n * qber)
-    indices = random.sample(range(n), num_errors)
+    indices = prng.sample(range(n), num_errors)
     for idx in indices:
         bob_key[idx] = 1 - bob_key[idx]
         
@@ -53,7 +54,8 @@ def generate_keys(n, qber):
 
 async def test_consistency(n=1024, passes=4, qber=0.05, seed=42):
     random.seed(seed)
-    alice_key, bob_key = generate_keys(n, qber)
+    prng = PRNG(seed)
+    alice_key, bob_key = generate_keys(n, qber, prng)
     
     initial_errors = sum(1 for a, b in zip(alice_key, bob_key) if a != b)
     

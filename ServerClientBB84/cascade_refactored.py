@@ -1,6 +1,6 @@
 
 import math
-import random
+from prng import PRNG
 import asyncio
 from typing import List, Protocol, Any
 
@@ -32,7 +32,7 @@ class CascadeClientProtocol:
             print(message)
 
     def _deterministic_shuffle(self, data, seed):
-        rng = random.Random(seed)
+        rng = PRNG(seed)
         shuffled_data = list(data)
         rng.shuffle(shuffled_data)
         return shuffled_data
@@ -138,8 +138,8 @@ class CascadeClientProtocol:
             if i == 1:
                 k = int(0.73 / qber if 1 > qber > 0  else 9)
             else:
-                k = k * (2 ** (i - 1))
-            
+                k = k * 2
+            #k = k * (2 ** (i - 1))
             self.log(f"  Block size k: {k}")
 
             block_index_lists = []
@@ -161,7 +161,7 @@ class CascadeClientProtocol:
             
             # API Call: Get parities for ALL blocks
             alice_parity_list = await self.oracle.get_parities(block_index_lists)
-            self.bits_revealed += len(alice_parity_list)
+            self.bits_revealed +=  len(alice_parity_list)
             
             # Compute local parities
             bob_parity_list = self.calculate_local_parities(self.Q_int, block_index_lists)

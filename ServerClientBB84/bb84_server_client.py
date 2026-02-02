@@ -1,11 +1,9 @@
 
 import asyncio
-import random
 import logging
 import datetime
 import math
 from dataclasses import dataclass
-from enum import Enum
 from typing import Optional, List, Dict, Tuple, Any
 from abc import ABC, abstractmethod
 from typing import Protocol
@@ -14,15 +12,14 @@ from typing import Protocol
 import sys
 import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+from prng import PRNG, Basis
 from cascade_refactored import CascadeClientProtocol, ParityOracle
+from qc_ldpc import QCLDPCClientProtocol
+from qc_ldpc_v2 import QCLDPCv2ClientProtocol
+import time
 
 # --- Logging Configuration ---
 logging.basicConfig(level=logging.ERROR, format='%(message)s')
-
-# --- Primitives ---
-class Basis(Enum):
-    RECTILINEAR = "+" 
-    DIAGONAL = "x"   
 
 @dataclass
 class Photon:
@@ -39,22 +36,6 @@ class DetectionEvent:
     bit: int
     detection_time: str
     source: str 
-
-# --- PRNG ---
-class PRNG:
-    def __init__(self, seed=None):
-        self.rng = random.Random(seed)
-
-    def seed(self, val):
-        self.rng.seed(val)
-
-    def get_bit(self) -> int: return self.rng.choice([0, 1])
-    def get_basis(self) -> Basis: return self.rng.choice(list(Basis))
-    def random(self) -> float: return self.rng.random()
-    def shuffle(self, x: list): self.rng.shuffle(x)
-    def choice(self, options: list): return self.rng.choice(options)
-    def sample(self, population, k) -> list:
-        return self.rng.sample(population, k)
 
 # --- Actor Framework (Unchanged) ---
 class Actor:
@@ -351,9 +332,11 @@ class APIClient(ParityOracle):
 # --- BOB (CLIENT) ---
 
 class BobClient(Actor):
-    def __init__(self, name, api_client: APIClient, seed=None):
+    def __init__(self, name, api_client: APIClient, protocol="cascade", seed=None, verbose=False):
         super().__init__(name, seed)
         self.api = api_client
+        self.protocol = protocol.lower()
+        self.verbose = verbose
         self.received_events = [] # List[DetectionEvent]
 
     async def handle_message(self, msg):
@@ -392,7 +375,25 @@ class BobClient(Actor):
         sample_size = 0.2
         k = int(n_sifted * sample_size)
         
-        print(f"[BOB] Sampling {k} bits (20%) for QBER estimation...")
+        # Enforce minimum sample size of 10 bits
+        if n_sifted < 10:
+             print(f"[BOB] Error: Sifted key too short ({n_sifted}) for QBER estimation.")
+             return {
+                "sifted_length": n_sifted,
+                "qber": 1.0, # Fail safe
+                "final_length": 0,
+                "revealed": 0,
+                "corrected": 0,
+                "channel_uses": 0,
+                "corrected_key": [],
+                "exec_time": 0
+            }
+        
+        if k < 10:
+            k = 10
+            print(f"[BOB] Adjusted sample size to minimum 10 bits.")
+        
+        print(f"[BOB] Sampling {k} bits for QBER estimation...")
         
         if k > 0:
             indices_to_sample = self.prng.sample(range(n_sifted), k)
@@ -416,10 +417,32 @@ class BobClient(Actor):
             clean_key_bob = list(sifted_key_bob)
             print("[BOB] Not enough bits to sample. QBER set to 0.0")
 
-        # 3. Cascade
-        print(f"[BOB] Initializing Cascade Protocol...")
-        cascade = CascadeClientProtocol(num_passes=4, verbose=True)
-        corrected_key, revealed, errors_cor, uses = await cascade.run(clean_key_bob, qber if qber > 0 else 0.01, self.api)
+        # 3. Reconciliation
+        print(f"[BOB] Initializing {self.protocol.title()} Protocol...")
+        t_start = time.time()
+        
+        est_qber = qber if qber > 0 else 0.01
+
+        if self.protocol == "cascade":
+            protocol = CascadeClientProtocol(num_passes=4, verbose=self.verbose)
+            corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
+        elif self.protocol == "ldpc":
+            # Generate deterministic seed for protocol from Bob's PRNG
+            proto_seed = self.prng.randint(0, 2**32 - 1)
+            protocol = QCLDPCClientProtocol(verbose=self.verbose, rate="adaptive", seed=proto_seed)
+            corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
+        elif self.protocol == "ldpcv2":
+            # Generate deterministic seed for protocol from Bob's PRNG
+            proto_seed = self.prng.randint(0, 2**32 - 1)
+            # Use "adaptive" rate
+            protocol = QCLDPCv2ClientProtocol(verbose=self.verbose, rate="adaptive", seed=proto_seed)
+            corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
+        else:
+             print(f"Unknown protocol {self.protocol}, defaulting to Cascade")
+             protocol = CascadeClientProtocol(num_passes=4, verbose=self.verbose)
+             corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
+
+        exec_time = time.time() - t_start
 
         # Return metrics
         return {
@@ -429,7 +452,8 @@ class BobClient(Actor):
             "revealed": revealed,
             "corrected": errors_cor,
             "channel_uses": uses,
-            "corrected_key": corrected_key
+            "corrected_key": corrected_key,
+            "exec_time": exec_time
         }
 
 # --- MAIN ORCHESTRATION ---
