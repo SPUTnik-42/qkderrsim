@@ -1,4 +1,10 @@
 .venv/
-ErrorCorrection/__pycache__/
+ActorBasedBB84/__pycache__/
 Dev/__pycache__/
 ServerClientBB84/__pycache__/
+QKDerrorCorrection/__pycache__/
+QKDerrorCorrection/webapp/migrations/
+QKDerrorCorrection/.env
+QKDerrorCorrection/db.sqlite3
+QKDerrorCorrection/QKDerrCorr/__pycache__/
+QKDerrorCorrection/webapp/__pycache__/
