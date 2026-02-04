@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, List, Dict, Tuple, Any
 from abc import ABC, abstractmethod
-from ErrorCorrection.cascade import CascadeProtocol as Cascade
+from .cascade import CascadeProtocol as Cascade
 
 # --- Logging Configuration ---
 logging.basicConfig(level=logging.ERROR, format='%(message)s')

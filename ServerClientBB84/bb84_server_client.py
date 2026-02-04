@@ -332,12 +332,13 @@ class APIClient(ParityOracle):
 # --- BOB (CLIENT) ---
 
 class BobClient(Actor):
-    def __init__(self, name, api_client: APIClient, protocol="cascade", seed=None, verbose=False):
+    def __init__(self, name, api_client: APIClient, protocol="cascade", seed=None, verbose=False, protocol_params=None):
         super().__init__(name, seed)
         self.api = api_client
         self.protocol = protocol.lower()
         self.verbose = verbose
         self.received_events = [] # List[DetectionEvent]
+        self.protocol_params = protocol_params if protocol_params else {}
 
     async def handle_message(self, msg):
         if isinstance(msg, DetectionEvent):
@@ -429,17 +430,21 @@ class BobClient(Actor):
         elif self.protocol == "ldpc":
             # Generate deterministic seed for protocol from Bob's PRNG
             proto_seed = self.prng.randint(0, 2**32 - 1)
-            protocol = QCLDPCClientProtocol(verbose=self.verbose, rate="adaptive", seed=proto_seed)
+            rate = self.protocol_params.get('rate', "adaptive")
+            protocol = QCLDPCClientProtocol(verbose=self.verbose, rate=rate, seed=proto_seed)
             corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
         elif self.protocol == "ldpcv2":
             # Generate deterministic seed for protocol from Bob's PRNG
             proto_seed = self.prng.randint(0, 2**32 - 1)
             # Use "adaptive" rate
-            protocol = QCLDPCv2ClientProtocol(verbose=self.verbose, rate="adaptive", seed=proto_seed)
+            rate = self.protocol_params.get('rate', "adaptive")
+            protocol = QCLDPCv2ClientProtocol(verbose=self.verbose, rate=rate, seed=proto_seed)
             corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
         else:
-             print(f"Unknown protocol {self.protocol}, defaulting to Cascade")
-             protocol = CascadeClientProtocol(num_passes=4, verbose=self.verbose)
+             if self.protocol != "cascade":
+                 print(f"Unknown protocol {self.protocol}, defaulting to Cascade")
+             num_passes = int(self.protocol_params.get('num_passes', 4))
+             protocol = CascadeClientProtocol(num_passes=num_passes, verbose=self.verbose)
              corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
 
         exec_time = time.time() - t_start

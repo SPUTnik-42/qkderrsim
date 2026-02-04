@@ -1,0 +1,243 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<style>
+    /* Local overrides only - Global theme in base.html */
+    
+    .container { max_width: 1400px; margin: 0 auto; padding: 20px; }
+    h1 { text-align: center; color: var(--primary-blue); font-weight: 300; margin-bottom: 30px; letter-spacing: 1px; }
+    
+    .intro-box {
+        background-color: var(--primary-blue); /* Flat color, no gradient */
+        color: white;
+        padding: 20px 30px;
+        border-radius: 8px;
+        margin-bottom: 30px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+    .intro-box h2 { margin-top: 0; font-size: 1.5rem; color: #fff; }
+    .intro-box p { margin-bottom: 0; opacity: 0.9; line-height: 1.6; }
+
+    .sim-layout { display: flex; gap: 30px; align-items: flex-start; }
+    .controls { flex: 0 0 350px; background: white; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.05); overflow: hidden; position: sticky; top: 20px; }
+    .results { flex: 1; min-width: 0; }
+    
+    /* Collapsible Sections */
+    .section-header {
+        background-color: var(--primary-blue);
+        color: white;
+        padding: 15px 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        user-select: none;
+        transition: background-color 0.2s;
+    }
+    .section-header:hover { background-color: #1a365d; }
+    .section-header .icon { font-size: 0.8em; transition: transform 0.3s; }
+    .section-header.active .icon { transform: rotate(180deg); }
+    
+    .section-content {
+        padding: 20px;
+        display: none;
+        border-bottom: 1px solid #eee;
+        background: #fff;
+    }
+    .section-content.show { display: block; animation: slideDown 0.3s ease-out; }
+    
+    @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .form-group { margin-bottom: 15px; }
+    label { display: block; margin-bottom: 6px; font-weight: 500; font-size: 0.9em; color: #4a5568; }
+    input[type="number"], input[type="text"] { width: 100%; padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 4px; box-sizing: border-box; transition: border-color 0.2s; }
+    input[type="number"]:focus, input[type="text"]:focus { outline: none; border-color: var(--secondary-blue); box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.2); }
+    
+    .run-btn {
+        width: 100%;
+        background-color: var(--secondary-blue); /* Flat color */
+        color: white;
+        border: none;
+        padding: 15px;
+        font-size: 1.1em;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+    .run-btn:hover { background-color: #3182ce; }
+    .run-btn:active { transform: scale(0.98); }
+
+    .graph-card { background: white; margin-bottom: 30px; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
+    .graph-card img { width: 100%; height: auto; border-radius: 4px; }
+    .protocols-group { display: flex; gap: 20px; align-items: center; }
+    .protocols-group label { margin-bottom: 0; cursor: pointer; }
+
+    /* Loading Spinner */
+    .spinner-border {
+        display: inline-block;
+        width: 3rem;
+        height: 3rem;
+        vertical-align: text-bottom;
+        border: 0.25em solid currentColor;
+        border-right-color: transparent;
+        border-radius: 50%;
+        animation: spinner-border .75s linear infinite;
+        color: var(--secondary-blue);
+    }
+    
+    @keyframes spinner-border {
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+
+
+
+<div class="container">
+    <h1>QKD Error Correction Simulator</h1>
+    
+    <div class="intro-box">
+        <h2>About this Simulator</h2>
+        <p>
+            This tool simulates the Discrete-Variable Quantum Key Distribution (DV-QKD) post-processing pipeline. 
+            It models the <strong>BB84 Protocol</strong> transmission over a fiber channel, followed by error correction using 
+            <strong>Cascade</strong> or <strong>QC-LDPC</strong> algorithms. Explore how physical parameters like distance, 
+            attenuation, and detector noise affect the final Secure Key Rate and Efficiency in real-time.
+        </p>
+    </div>
+
+    <div class="sim-layout">
+        <div class="controls">
+            <form method="post">
+                {% csrf_token %}
+                
+                <!-- Section 1: General -->
+                <div class="section-header active" onclick="toggleSection(this)">
+                    General Settings <span class="icon">▼</span>
+                </div>
+                <div class="section-content show">
+                    <div class="form-group">
+                         <label title="Number of qubits Alice sends">Number of Qubits</label>
+                         <input type="number" name="num_qubits" value="{{ params.num_qubits|default:50000 }}">
+                    </div>
+                    <div class="form-group">
+                         <label title="Number of points in the QBER sweep graph">Steps (Data Points)</label>
+                         <input type="number" name="steps" value="{{ params.steps|default:50 }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Min Error Rate (0.0 - 1.0)</label>
+                        <input type="number" step="0.001" name="min_error" value="{{ params.min_error|default:0.001 }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Max Error Rate (0.0 - 1.0)</label>
+                        <input type="number" step="0.001" name="max_error" value="{{ params.max_error|default:0.15 }}">
+                    </div>
+                </div>
+
+                <!-- Section 2: Channel -->
+                <div class="section-header" onclick="toggleSection(this)">
+                    Channel Properties <span class="icon">▼</span>
+                </div>
+                <div class="section-content">
+                    <div class="form-group">
+                        <label>Distance (km)</label>
+                        <input type="number" name="distance_km" value="{{ params.distance_km|default:50 }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Attenuation (dB/km)</label>
+                        <input type="number" step="0.1" name="channel_att" value="{{ params.channel_att|default:0.2 }}">
+                    </div>
+                    <div class="form-group">
+                        <label>Eve Intercept Rate</label>
+                        <input type="number" step="0.01" name="eve_intercept" value="{{ params.eve_intercept|default:0.2 }}">
+                    </div>
+                </div>
+
+                <!-- Section 3: Detector -->
+                <div class="section-header" onclick="toggleSection(this)">
+                    Detector Properties <span class="icon">▼</span>
+                </div>
+                <div class="section-content">
+                    <div class="form-group">
+                         <label>Efficiency (0.0 - 1.0)</label>
+                         <input type="number" step="0.01" name="det_eff" value="{{ params.det_eff|default:0.8 }}">
+                    </div>
+                    <div class="form-group">
+                         <label>Dark Count Prob</label>
+                         <input type="number" step="0.001" name="det_dc" value="{{ params.det_dc|default:0.01 }}">
+                    </div>
+                </div>
+
+                <!-- Section 4: Protocol -->
+                <div class="section-header" onclick="toggleSection(this)">
+                    Protocol Settings <span class="icon">▼</span>
+                </div>
+                <div class="section-content">
+                    <div class="form-group">
+                        <label>Protocols</label>
+                        <div class="protocols-group">
+                             <label><input type="checkbox" name="protocols" value="cascade" {% if not params or 'cascade' in params.protocols %}checked{% endif %}> Cascade</label>
+                             <label><input type="checkbox" name="protocols" value="ldpc" {% if 'ldpc' in params.protocols %}checked{% endif %}> QC-LDPCv2</label>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label>Cascade Passes</label>
+                        <input type="number" name="cascade_passes" value="{{ params.cascade_passes|default:4 }}">
+                    </div>
+                    <div class="form-group">
+                        <label>LDPC Rate (0.0-1.0 or 'adaptive')</label>
+                        <input type="text" name="ldpc_rate" value="{{ params.ldpc_rate|default:'adaptive' }}">
+                    </div>
+                </div>
+                
+                <button type="submit" class="run-btn">Run Simulation</button>
+            </form>
+            {% if error %}
+            <div style="padding: 15px; color: #e53e3e; background: #fff5f5; border-top: 1px solid #feb2b2;">
+                <strong>Error:</strong> {{ error }}
+            </div>
+            {% endif %}
+        </div>
+        
+        <div class="results">
+            {% if graphs %}
+                {% for graph in graphs %}
+                <div class="graph-card">
+                    <img src="data:image/png;base64,{{ graph }}" alt="Simulation Graph">
+                </div>
+                {% endfor %}
+            {% else %}
+                <div style="background: white; padding: 40px; border-radius: 8px; text-align: center; color: #718096; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                    <h3 style="margin-top:0; color: #2c5282;">Ready to Simulate</h3>
+                    <p>Adjust the parameters on the left and click "Run Simulation" to generate performance metrics.</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<script>
+    function toggleSection(header) {
+        header.classList.toggle('active');
+        var content = header.nextElementSibling;
+        content.classList.toggle('show');
+    }
+
+    // Show loading overlay on form submit
+    document.querySelector('form').addEventListener('submit', function() {
+        document.getElementById('pageLoadingOverlay').style.display = 'block';
+    });
+</script>
+
+<!-- Full-page loading overlay -->
+<div id="pageLoadingOverlay" style="display: none; position: fixed; width: 100%; height: 100%; top: 0; left: 0; background-color: rgba(255, 255, 255, 0.85); backdrop-filter: blur(4px); z-index: 2000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+        <div class="spinner-border" role="status"></div>
+        <p class="mt-3" style="margin-top: 20px; font-weight: 500; font-size: 1.2rem; color: var(--primary-blue);">Running advanced simulation, please wait...</p>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,19 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="intro-container" style="max-width: 800px; margin: 60px auto; padding: 20px; text-align: center;">
+    <h1 style="color: var(--primary-blue); font-weight: 300; font-size: 3rem; margin-bottom: 20px;">QKD Error Correction Simulator</h1>
+    
+    <div style="background: white; padding: 40px; border-radius: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.05);">
+        <h2 style="color: var(--secondary-blue); margin-top: 0; font-weight: 500;">Secure Communication Analysis</h2>
+        <p style="font-size: 1.1rem; line-height: 1.7; color: #4a5568; margin-bottom: 30px;">
+            Welcome to the Discrete-Variable Quantum Key Distribution (DV-QKD) simulator. 
+            This tool mimics the full reconciliation pipeline—from photon transmission to error correction—allowing you to benchmark protocols like <strong>Cascade</strong> and <strong>QC-LDPC</strong> against real-world noise and attenuation models.
+        </p>
+        
+        <a href="{% url 'simulation' %}" class="btn-primary">
+            Start Simulation
+        </a>
+    </div>
+</div>
+{% endblock %}
