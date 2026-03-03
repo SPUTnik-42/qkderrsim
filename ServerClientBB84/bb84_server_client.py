@@ -14,8 +14,12 @@ import os
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 from prng import PRNG, Basis
 from cascade_refactored import CascadeClientProtocol, ParityOracle
-from qc_ldpc import QCLDPCClientProtocol
-from qc_ldpc_v2 import QCLDPCv2ClientProtocol
+# from qc_ldpc import QCLDPCClientProtocol
+# from qc_ldpc_v2 import QCLDPCv2ClientProtocol
+# from qc_ldpc_v3 import QCLDPCv3ClientProtocol
+# from nr_ldpc_bb84 import NR_LDPC_ClientProtocol
+from nr_ldpc_standard import NR_LDPC_Standard_ClientProtocol
+from winnow_refactored import WinnowClientProtocol
 import time
 
 # --- Logging Configuration ---
@@ -425,20 +429,44 @@ class BobClient(Actor):
         est_qber = qber if qber > 0 else 0.01
 
         if self.protocol == "cascade":
-            protocol = CascadeClientProtocol(num_passes=4, verbose=self.verbose)
+            passes = int(self.protocol_params.get('num_passes', 4))
+            protocol = CascadeClientProtocol(num_passes=passes, verbose=self.verbose)
             corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
-        elif self.protocol == "ldpc":
-            # Generate deterministic seed for protocol from Bob's PRNG
+        # elif self.protocol == "ldpc":
+        #     # Generate deterministic seed for protocol from Bob's PRNG
+        #     proto_seed = self.prng.randint(0, 2**32 - 1)
+        #     rate = self.protocol_params.get('rate', "adaptive")
+        #     protocol = QCLDPCClientProtocol(verbose=self.verbose, rate=rate, seed=proto_seed)
+        #     corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
+        # elif self.protocol == "ldpc_v2" or self.protocol == "ldpcv2":
+        #     # Generate deterministic seed for protocol from Bob's PRNG
+        #     proto_seed = self.prng.randint(0, 2**32 - 1)
+        #     # Use "adaptive" rate
+        #     rate = self.protocol_params.get('rate', "adaptive")
+        #     protocol = QCLDPCv2ClientProtocol(verbose=self.verbose, rate=rate, seed=proto_seed)
+        #     corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
+        # elif self.protocol == "ldpc_v3" or self.protocol == "qc_ldpc_v3" or self.protocol == "ldpcv3":
+        #     # Generate deterministic seed for protocol from Bob's PRNG
+        #     proto_seed = self.prng.randint(0, 2**32 - 1)
+        #     # Use "adaptive" rate
+        #     rate = self.protocol_params.get('rate', "adaptive")
+        #     protocol = QCLDPCv3ClientProtocol(verbose=self.verbose, rate=rate, seed=proto_seed)
+        #     corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
+        # elif self.protocol == "ldpc_5g" or self.protocol == "nr_ldpc":
+        #     proto_seed = self.prng.randint(0, 2**32 - 1)
+        #     print("[BOB] Selected Protocol: 5G NR LDPC (Sionna) with HARQ-IR")
+        #     protocol = NR_LDPC_ClientProtocol(verbose=self.verbose, seed=proto_seed)
+        #     corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
+        elif self.protocol == "ldpc_5g_std" or self.protocol == "nr_ldpc_std" or self.protocol == "nr_ldpc_standard":
             proto_seed = self.prng.randint(0, 2**32 - 1)
-            rate = self.protocol_params.get('rate', "adaptive")
-            protocol = QCLDPCClientProtocol(verbose=self.verbose, rate=rate, seed=proto_seed)
+            target_rate = self.protocol_params.get('rate', 0.33)
+            print(f"[BOB] Selected Protocol: 5G NR LDPC (Sionna) Standard Fixed Rate (R={target_rate})")
+            protocol = NR_LDPC_Standard_ClientProtocol(verbose=self.verbose, seed=proto_seed, rate=target_rate)
             corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
-        elif self.protocol == "ldpcv2":
-            # Generate deterministic seed for protocol from Bob's PRNG
-            proto_seed = self.prng.randint(0, 2**32 - 1)
-            # Use "adaptive" rate
-            rate = self.protocol_params.get('rate', "adaptive")
-            protocol = QCLDPCv2ClientProtocol(verbose=self.verbose, rate=rate, seed=proto_seed)
+        elif self.protocol == "winnow":
+            num_passes = int(self.protocol_params.get('num_passes', 4))
+            print(f"[BOB] Selected Protocol: Winnow ({num_passes} passes)")
+            protocol = WinnowClientProtocol(num_passes=num_passes, verbose=self.verbose)
             corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
         else:
              if self.protocol != "cascade":
@@ -495,10 +523,13 @@ async def run_server_client_simulation():
     # But QuantumChannel ctor takes next_actor immediately.
     # We can set it after.
     
-    channel = QuantumChannel("Fiber", 50, 0.2, 0.01, next_actor=None, seed=seed_channel)
+    channel = QuantumChannel("Fiber", 50, 0.2, 0.05, next_actor=None, seed=seed_channel)
     alice = AliceServer("AliceServer", channel, num_qubits=5000, verbose=True, seed=seed_alice)
     api = APIClient(alice)
-    bob = BobClient("BobClient", api, seed=seed_bob)
+    
+    # Use Winnow
+    bob = BobClient("BobClient", api, protocol="winnow", seed=seed_bob, verbose=True)
+    
     detector = Detector("Detector", 0.8, 0.01, parent_bob=bob, seed=seed_detector)
     
     channel.next_actor = detector # Closing the loop

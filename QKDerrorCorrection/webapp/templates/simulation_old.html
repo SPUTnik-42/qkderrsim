@@ -73,7 +73,7 @@
 
     .graph-card { background: white; margin-bottom: 30px; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0; }
     .graph-card img { width: 100%; height: auto; border-radius: 4px; }
-    .protocols-group { display: flex; flex-direction: column; gap: 10px; align-items: flex-start; }
+    .protocols-group { display: flex; gap: 20px; align-items: center; }
     .protocols-group label { margin-bottom: 0; cursor: pointer; }
 
     /* Loading Spinner */
@@ -181,8 +181,7 @@
                         <label>Protocols</label>
                         <div class="protocols-group">
                              <label><input type="checkbox" name="protocols" value="cascade" {% if not params or 'cascade' in params.protocols %}checked{% endif %}> Cascade</label>
-                             <label><input type="checkbox" name="protocols" value="nr_ldpc_std" {% if 'nr_ldpc_std' in params.protocols %}checked{% endif %}> NR-LDPC Standard</label>
-                             <label><input type="checkbox" name="protocols" value="winnow" {% if 'winnow' in params.protocols %}checked{% endif %}> Winnow</label>
+                             <label><input type="checkbox" name="protocols" value="ldpc" {% if 'ldpc' in params.protocols %}checked{% endif %}> QC-LDPCv2</label>
                         </div>
                     </div>
                     <div class="form-group">
@@ -190,12 +189,8 @@
                         <input type="number" name="cascade_passes" value="{{ params.cascade_passes|default:4 }}">
                     </div>
                     <div class="form-group">
-                        <label>Winnow Passes</label>
-                        <input type="number" name="winnow_passes" value="{{ params.winnow_passes|default:4 }}">
-                    </div>
-                    <div class="form-group">
-                        <label>LDPC Rate (0.0-1.0)</label>
-                        <input type="text" name="ldpc_rate" value="{{ params.ldpc_rate|default:0.33 }}">
+                        <label>LDPC Rate (0.0-1.0 or 'adaptive')</label>
+                        <input type="text" name="ldpc_rate" value="{{ params.ldpc_rate|default:'adaptive' }}">
                     </div>
                 </div>
                 
@@ -209,43 +204,17 @@
         </div>
         
         <div class="results">
-            <!-- Graphs Container -->
-            <div id="graphs-container">
             {% if graphs %}
                 {% for graph in graphs %}
                 <div class="graph-card">
                     <img src="data:image/png;base64,{{ graph }}" alt="Simulation Graph">
                 </div>
                 {% endfor %}
-            {% elif streaming_mode %}
-                <div style="background: white; padding: 20px; border-radius: 8px; text-align: center; color: #718096; border: 1px dashed #cbd5e0;">
-                    <h3 style="margin:0; font-size: 1.1em; color: #4a5568;">Simulation in Progress...</h3>
-                    <p>Graphs will appear here upon completion.</p>
-                    <!-- Bouncing Quantum Dots Animation -->
-                    <div style="display: flex; justify-content: center; gap: 8px; margin-top: 20px;">
-                        <div style="width: 10px; height: 10px; background-color: #4299e1; border-radius: 50%; animation: q-bounce 0.4s infinite alternate;"></div>
-                        <div style="width: 10px; height: 10px; background-color: #4299e1; border-radius: 50%; animation: q-bounce 0.4s infinite alternate 0.1s;"></div>
-                        <div style="width: 10px; height: 10px; background-color: #4299e1; border-radius: 50%; animation: q-bounce 0.4s infinite alternate 0.2s;"></div>
-                    </div>
-                    <style>@keyframes q-bounce { from { transform: translateY(0); opacity: 0.8; } to { transform: translateY(-10px); opacity: 0.4; background-color: #2b6cb0; } }</style>
-                </div>
             {% else %}
                 <div style="background: white; padding: 40px; border-radius: 8px; text-align: center; color: #718096; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
                     <h3 style="margin-top:0; color: #2c5282;">Ready to Simulate</h3>
                     <p>Adjust the parameters on the left and click "Run Simulation" to generate performance metrics.</p>
                 </div>
-            {% endif %}
-            </div>
-
-            {% if log_output or streaming_mode %}
-            <div class="terminal-box" id="terminal-container" style="margin-top: 30px; background: #1a1a1a; padding: 20px; border-radius: 8px; color: #4ade80; font-family: 'Courier New', monospace; font-size: 0.9em; max-height: 400px; overflow-y: auto;">
-                <h3 style="color: #fff; border-bottom: 1px solid #333; padding-bottom: 10px; margin-top: 0; font-size: 1.1em;">Simulation Log</h3>
-                {% if streaming_mode %}
-                    <pre id="sim-log" style="white-space: pre-wrap; margin: 0;"></pre>
-                {% else %}
-                    <pre style="white-space: pre-wrap; margin: 0;">{{ log_output }}</pre>
-                {% endif %}
-            </div>
             {% endif %}
         </div>
     </div>
@@ -258,27 +227,17 @@
         content.classList.toggle('show');
     }
 
-    // Auto-scroll logic for terminal
-    (function() {
-        var container = document.getElementById('terminal-container');
-        var shouldAutoScroll = true;
-
-        if (container) {
-            container.addEventListener('scroll', function() {
-                // If user scrolls up (is not at the bottom), disable auto-scroll
-                // We use a small threshold (20px) to account for floating point issues or borders
-                var isAtBottom = (container.scrollHeight - container.scrollTop - container.clientHeight) < 50;
-                shouldAutoScroll = isAtBottom;
-            });
-        }
-
-        // Expose a function to be called by the streaming updates
-        window.updateTerminalScroll = function() {
-            if (shouldAutoScroll && container) {
-                container.scrollTop = container.scrollHeight;
-            }
-        };
-    })();
+    // Show loading overlay on form submit
+    document.querySelector('form').addEventListener('submit', function() {
+        document.getElementById('pageLoadingOverlay').style.display = 'block';
+    });
 </script>
 
+<!-- Full-page loading overlay -->
+<div id="pageLoadingOverlay" style="display: none; position: fixed; width: 100%; height: 100%; top: 0; left: 0; background-color: rgba(255, 255, 255, 0.85); backdrop-filter: blur(4px); z-index: 2000;">
+    <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+        <div class="spinner-border" role="status"></div>
+        <p class="mt-3" style="margin-top: 20px; font-weight: 500; font-size: 1.2rem; color: var(--primary-blue);">Running advanced simulation, please wait...</p>
+    </div>
+</div>
 {% endblock %}
