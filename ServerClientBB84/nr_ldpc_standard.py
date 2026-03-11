@@ -101,8 +101,7 @@ class NR_LDPC_Standard_ClientProtocol:
         n_needed = k / R
         
         However, we want to be conservative to ensure decoding success.
-        We will use a small margin but NOT an arbitrary efficiency factor.
-        We just interpret the QBER to find the minimum necessary block size.
+        We will use a safety margin (efficiency factor).
         """
         if qber <= 0: return 0
         h_p = -qber * math.log2(qber) - (1-qber) * math.log2(1-qber)
@@ -116,15 +115,10 @@ class NR_LDPC_Standard_ClientProtocol:
         # Calculate N needed to satisfy this rate
         n_needed = int(self.k / max_rate)
         
-        # Limit to the mother code length available
-        if n_needed > self.n_mother:
-            n_needed = self.n_mother
-            
         # Parity bits needed = n_needed - k_systematic (approx)
-        # Actually strictly: n_needed - number_of_systematic_transmitted
-        # Since we transmit all systematic bits (key), it is n_needed - k
-        
-        parity_needed = max(0, n_needed - self.k)
+        # To add a safety margin so decoding doesn't mostly fail, we inflate the needed parity.
+        margin = 1.2  # Safety margin multiplier (30% more parity over base computation)
+        parity_needed = int(max(0, n_needed - self.k) * margin)
         
         # Ensure we don't request more than available in the mother code
         # The mother code has (n_mother - k) parity bits roughly.
@@ -138,7 +132,33 @@ class NR_LDPC_Standard_ClientProtocol:
 
     async def run(self, key: List[int], qber: float, oracle: ParityOracle):
         """
-        Execute Reconciliation in one shot with Rate Matching (Puncturing).
+        Execute Reconciliation with automatic block chunking for large keys.
+        Using safe MAX_K=4000 to avoid Sionna GPU reshape instability at very large block sizes.
+        """
+        MAX_K = 4000
+        if len(key) <= MAX_K:
+            return await self._run_chunk(key, qber, oracle, 0)
+            
+        self.log(f"Key length {len(key)} exceeds max LDPC block size {MAX_K}. Splitting into chunks.")
+        
+        results = []
+        total_bits = 0
+        total_errors = 0
+        total_channel = 0
+        
+        for i in range(0, len(key), MAX_K):
+            chunk = key[i:i+MAX_K]
+            res_chunk, bits, errors, ch_uses = await self._run_chunk(chunk, qber, oracle, offset=i)
+            results.extend(res_chunk)
+            total_bits += bits
+            total_errors += errors
+            total_channel += ch_uses
+            
+        return results, total_bits, total_errors, total_channel
+
+    async def _run_chunk(self, key: List[int], qber: float, oracle: ParityOracle, offset: int = 0):
+        """
+        Execute Reconciliation in one shot with Rate Matching (Puncturing) for a single block.
         """
         if not SIONNA_AVAILABLE:
             self.log("CRITICAL: Sionna not available. Aborting.")
@@ -163,6 +183,10 @@ class NR_LDPC_Standard_ClientProtocol:
         # Use the configured target_rate to set the MOTHER code dimension.
         mother_n = int(self.k / self.target_rate)
         
+        # Enforce Sionna's limit: coderate >= 1/3 (therefore n <= 3k)
+        if mother_n > 3 * self.k:
+            mother_n = 3 * self.k
+            
         self.log(f"Initializing 5G LDPC Engine (k={self.k}, Mother n={mother_n}, Base Rate={self.target_rate:.3f})...")
         
         try:
@@ -267,7 +291,7 @@ class NR_LDPC_Standard_ClientProtocol:
             blocks = []
             for p_idx in parity_indices_to_request:
                 participants = np.where(self.G_matrix[:, p_idx] == 1)[0].tolist()
-                blocks.append(participants)
+                blocks.append([idx + offset for idx in participants])
             
             self.log(f"Requesting {len(blocks)} parity bits (Punctured Transmission).")
             self.channel_uses += 1
@@ -322,10 +346,10 @@ class NR_LDPC_Standard_ClientProtocol:
 if __name__ == "__main__":
     async def main():
         print("--- 5G NR LDPC Standard Test ---")
-        N = 2000
+        N = 10000
         prng = PRNG(123)
         alice = [prng.randint(0,1) for _ in range(N)]
-        qber = 0.05
+        qber = 0.1
         bob = list(alice)
         errs = 0
         for i in range(N):
@@ -344,7 +368,7 @@ if __name__ == "__main__":
         oracle.key = np.array(alice)
         
         # Test 
-        prot = NR_LDPC_Standard_ClientProtocol(verbose=True, rate=0.33)
+        prot = NR_LDPC_Standard_ClientProtocol(verbose=True, rate=0.333)
         res, bits, fail, _ = await prot.run(bob, qber, oracle)
         
         final_errs = np.sum(np.abs(np.array(res) - np.array(alice)))

@@ -146,7 +146,8 @@ def run_simulation(request):
 
     # Prepare data storage
     data = {p: {"qber": [], "leakage": [], "efficiency": [], "uses": [], "key_rate": [], 
-                "scale_size": [], "scale_time": []} for p in protocols}
+                "scale_size": [], "scale_time": [],
+                "sifted_length": [], "final_length": [], "revealed": [], "errors_corrected": []} for p in protocols}
 
 
     # Helper function for yielding log messages as simple JS/HTML updates
@@ -200,6 +201,11 @@ def run_simulation(request):
                                 data[p]["leakage"].append(leakage_frac * 100)
                                 data[p]["efficiency"].append(eff)
                                 data[p]["uses"].append(res['channel_uses'])
+                                data[p]["sifted_length"].append(res['sifted_length'])
+                                data[p]["final_length"].append(res['final_length'])
+                                data[p]["revealed"].append(res['revealed'])
+                                if 'errors_corrected' in res:
+                                    data[p]["errors_corrected"].append(res['errors_corrected'])
                                 sec_rate = 1.0 - leakage_frac - binary_entropy(res['qber'])
                                 data[p]["key_rate"].append(sec_rate)
 
@@ -341,10 +347,63 @@ def run_simulation(request):
         g4 = plot_metric("scale_time", "Execution Time (s)", "Computation Scalability (Block Size)", x_key="scale_size", xlabel="Block Size (Bits)")
         if g4: graphs.append(g4)
 
+        # Compute metrics panel HTML
+        metrics_html = '<div class="metrics-panel" style="background: white; padding: 20px; border-radius: 8px; margin-bottom: 30px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border: 1px solid #e2e8f0;">'
+        metrics_html += '<h3 style="margin-top: 0; color: #2c5282;">Simulation Metrics</h3>'
+        has_metrics = False
+        
+        all_sifted = []
+        all_final = []
+        for p, d in data.items():
+            if d.get("qber"):
+                all_sifted.extend(d["sifted_length"])
+                all_final.extend(d["final_length"])
+                
+        if all_sifted and all_final:
+            has_metrics = True
+            avg_sifted_global = np.mean(all_sifted)
+            avg_final_global = np.mean(all_final)
+            
+            metrics_html += '<div class="common-metrics" style="margin-bottom: 25px;">'
+            metrics_html += '<h4 style="margin-bottom: 10px; color: #2b6cb0; border-bottom: 2px solid #bee3f8; padding-bottom: 5px;">Common Metrics</h4>'
+            metrics_html += '<ul style="list-style-type: none; padding-left: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px;">'
+            metrics_html += f'<li style="background: #e6fffa; padding: 10px; border-radius: 4px; border-left: 4px solid #319795;"><strong>Avg Sifted Key Length:</strong> {avg_sifted_global:.1f}</li>'
+            metrics_html += f'<li style="background: #e6fffa; padding: 10px; border-radius: 4px; border-left: 4px solid #319795;"><strong>Avg Final Key Length:</strong> {avg_final_global:.1f}</li>'
+            metrics_html += '</ul></div>'
+        
+        for p, d in data.items():
+            if not d.get("qber"): continue
+            has_metrics = True
+            metrics_html += f'<div class="protocol-metrics" style="margin-bottom: 20px;">'
+            metrics_html += f'<h4 style="margin-bottom: 10px; color: #4a5568; border-bottom: 1px solid #e2e8f0; padding-bottom: 5px;">{p.replace("_", " ").upper()}</h4>'
+            
+            avg_eff = np.mean(d["efficiency"])
+            avg_revealed = np.mean(d["revealed"])
+            
+            metrics_html += '<ul style="list-style-type: none; padding-left: 0; margin: 0; display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 10px;">'
+            metrics_html += f'<li style="background: #f7fafc; padding: 10px; border-radius: 4px;"><strong>Avg Reconciliation Efficiency:</strong> {avg_eff:.3f}</li>'
+            metrics_html += f'<li style="background: #f7fafc; padding: 10px; border-radius: 4px;"><strong>Avg Total Bits Revealed:</strong> {avg_revealed:.1f}</li>'
+            
+            if d.get("errors_corrected"):
+                avg_err_corr = np.mean(d["errors_corrected"])
+                metrics_html += f'<li style="background: #f7fafc; padding: 10px; border-radius: 4px;"><strong>Avg Errors Corrected:</strong> {avg_err_corr:.1f}</li>'
+            
+            metrics_html += '</ul></div>'
+            
+        metrics_html += '</div>'
+        
+        if not has_metrics:
+            metrics_html = ""
+            
+        metrics_html = metrics_html.replace('"', '\\"').replace('\n', '')
+
         # 4. Yield Graph HTML
         # Clear the "InProgress" placeholder first
-        if graphs:
+        if graphs or has_metrics:
             yield b'<script>document.getElementById("graphs-container").innerHTML = "";</script>'
+            if metrics_html:
+                yield f'<script>document.getElementById("metrics-container").innerHTML = "{metrics_html}";</script>'.encode()
+            
             for g in graphs:
                 # Use a unique ID for each graph to avoid conflicts if needed, but not necessary here
                 # Warning: JS string escaping for base64 might be tricky if not careful, but base64 is safe.
