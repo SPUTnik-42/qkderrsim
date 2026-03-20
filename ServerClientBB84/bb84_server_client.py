@@ -20,6 +20,7 @@ from cascade_refactored import CascadeClientProtocol, ParityOracle
 # from nr_ldpc_bb84 import NR_LDPC_ClientProtocol
 from nr_ldpc_standard import NR_LDPC_Standard_ClientProtocol
 from winnow_refactored import WinnowClientProtocol
+from polar_codes import PolarClientProtocol
 import time
 
 # --- Logging Configuration ---
@@ -468,6 +469,12 @@ class BobClient(Actor):
             print(f"[BOB] Selected Protocol: Winnow ({num_passes} passes)")
             protocol = WinnowClientProtocol(num_passes=num_passes, verbose=self.verbose)
             corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
+        elif self.protocol == "polar":
+            u_fer_target = float(self.protocol_params.get('u_fer_target', 0.01))
+            c = float(self.protocol_params.get('c', 0.5))
+            print(f"[BOB] Selected Protocol: Polar Codes (Target FER={u_fer_target})")
+            protocol = PolarClientProtocol(verbose=self.verbose, u_fer_target=u_fer_target, c=c)
+            corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
         else:
              if self.protocol != "cascade":
                  print(f"Unknown protocol {self.protocol}, defaulting to Cascade")
@@ -527,8 +534,8 @@ async def run_server_client_simulation():
     alice = AliceServer("AliceServer", channel, num_qubits=5000, verbose=True, seed=seed_alice)
     api = APIClient(alice)
     
-    # Use Winnow
-    bob = BobClient("BobClient", api, protocol="winnow", seed=seed_bob, verbose=True)
+    # Use Polar Codes
+    bob = BobClient("BobClient", api, protocol="polar", seed=seed_bob, verbose=True)
     
     detector = Detector("Detector", 0.8, 0.01, parent_bob=bob, seed=seed_detector)
     
@@ -552,8 +559,8 @@ async def run_server_client_simulation():
     print(f"Sifted Key Length: {results['sifted_length']}")
     print(f"QBER (Est): {results['qber']:.4%}")
     print(f"Final Key Length: {results['final_length']}")
-    print(f"Cascade Revealed: {results['revealed']} bits")
-    print(f"Cascade Corrected: {results['corrected']} errors")
+    print(f"Revealed: {results['revealed']} bits")
+    print(f"Corrected: {results['corrected']} errors")
     print(f"Channel Uses: {results['channel_uses']}")
     
     # Verification (God Mode)

@@ -183,19 +183,28 @@
                              <label><input type="checkbox" name="protocols" value="cascade" {% if not params or 'cascade' in params.protocols %}checked{% endif %}> Cascade</label>
                              <label><input type="checkbox" name="protocols" value="nr_ldpc_std" {% if 'nr_ldpc_std' in params.protocols %}checked{% endif %}> NR-LDPC Standard</label>
                              <label><input type="checkbox" name="protocols" value="winnow" {% if 'winnow' in params.protocols %}checked{% endif %}> Winnow</label>
+                             <label><input type="checkbox" name="protocols" value="polar" {% if 'polar' in params.protocols %}checked{% endif %}> Polar Codes</label>
                         </div>
                     </div>
                     <div class="form-group">
-                        <label>Cascade Passes</label>
+                        <label title="Number of iterations for the Cascade algorithm">Cascade Passes <br><small style="color: #666; font-weight: normal;">More passes catch more errors, reducing final error rate, but require more network round-trips (latency) between Alice and Bob.</small></label>
                         <input type="number" name="cascade_passes" value="{{ params.cascade_passes|default:4 }}">
                     </div>
                     <div class="form-group">
-                        <label>Winnow Passes</label>
+                        <label title="Number of iterations for the Winnow algorithm">Winnow Passes <br><small style="color: #666; font-weight: normal;">Similar to Cascade but uses Hamming codes. Evaluates blocks of bits to uncover errors with fewer round-trips.</small></label>
                         <input type="number" name="winnow_passes" value="{{ params.winnow_passes|default:4 }}">
                     </div>
                     <div class="form-group">
-                        <label>LDPC Rate (0.0-1.0)</label>
+                        <label title="Code rate for LDPC. Use a float (e.g., 0.33) or 'adaptive'">LDPC Rate (0.0-1.0) <br><small style="color: #666; font-weight: normal;">Ratio of useful information vs total bits sent. E.g., 0.33 means 1/3 is message, 2/3 is parity. Lower rate = stronger error tolerance but smaller final key.</small></label>
                         <input type="text" name="ldpc_rate" value="{{ params.ldpc_rate|default:0.33 }}">
+                    </div>
+                    <div class="form-group">
+                        <label title="Target Frame Error Rate for Polar Codes">Polar Target FER <br><small style="color: #666; font-weight: normal;">The acceptable probability (e.g., 0.01 = 1%) that the final decoded key block still contains an error. Lower FER trades efficiency for security.</small></label>
+                        <input type="number" step="0.01" name="polar_u_fer" value="{{ params.polar_u_fer|default:0.04 }}">
+                    </div>
+                    <div class="form-group">
+                        <label title="Log-Likelihood Ratio threshold parameter for Polar Codes">Polar Cutoff (c) <br><small style="color: #666; font-weight: normal;">Threshold (usually 0.5) that determines when Bob should guess a bit versus ask Alice for help. Higher values prompt more questions, increasing latency but fixing harder errors.</small></label>
+                        <input type="number" step="0.01" name="polar_c" value="{{ params.polar_c|default:0.5 }}">
                     </div>
                 </div>
                 

@@ -44,8 +44,9 @@ def calculate_efficiency(n_revealed, k_sifted, qber):
     return n_revealed / (k_sifted * h_eps)
 
 async def _run_single_simulation(protocol, num_qubits, optical_error_rate, distance_km, attenuation_db,
-                               cascade_passes=4, winnow_passes=4, ldpc_rate="adaptive", eve_intercept=0.2, 
-                               det_eff=0.8, det_dc=0.01):
+                               cascade_passes=4, winnow_passes=4, ldpc_rate="adaptive",
+                               polar_u_fer=0.01, polar_c=0.5,
+                               eve_intercept=0.2, det_eff=0.8, det_dc=0.01):
     print(f"Running {protocol.upper()} | Qubits: {num_qubits} | Error: {optical_error_rate:.4f} | Dist: {distance_km}km")
     seed_base = 33333
     # Wiring
@@ -60,6 +61,8 @@ async def _run_single_simulation(protocol, num_qubits, optical_error_rate, dista
         p_params = {'num_passes': cascade_passes}
     elif protocol == 'winnow':
         p_params = {'num_passes': winnow_passes}
+    elif protocol == 'polar':
+        p_params = {'u_fer_target': polar_u_fer, 'c': polar_c}
     elif 'ldpc' in protocol:
         # For standard LDPC, rate must be numeric. If "adaptive", default to 0.333
         eff_rate = ldpc_rate
@@ -135,6 +138,8 @@ def run_simulation(request):
         
         cascade_passes = int(request.POST.get('cascade_passes', 4))
         winnow_passes = int(request.POST.get('winnow_passes', 4))
+        polar_u_fer = float(request.POST.get('polar_u_fer', 0.01))
+        polar_c = float(request.POST.get('polar_c', 0.5))
         ldpc_rate_raw = request.POST.get('ldpc_rate', 'adaptive')
         try:
             ldpc_rate = float(ldpc_rate_raw)
@@ -191,7 +196,7 @@ def run_simulation(request):
                 for p in protocols:
                     for err in error_rates:
                         res = loop.run_until_complete(_run_single_simulation(p, num_qubits, err, distance_km, channel_att,
-                                                            cascade_passes, winnow_passes, ldpc_rate, eve_intercept, det_eff, det_dc))
+                                                            cascade_passes, winnow_passes, ldpc_rate, polar_u_fer, polar_c, eve_intercept, det_eff, det_dc))
                         
                         if res.get('sifted_length', 0) > 0 and res.get('qber', 0) > 0:
                             eff = calculate_efficiency(res['revealed'], res['final_length'], res['qber'])
@@ -217,7 +222,7 @@ def run_simulation(request):
                 for p in protocols:
                     for size in block_sizes:
                         res = loop.run_until_complete(_run_single_simulation(p, size, fixed_err_scale, distance_km, channel_att,
-                                                            cascade_passes, winnow_passes, ldpc_rate, eve_intercept, det_eff, det_dc))
+                                                            cascade_passes, winnow_passes, ldpc_rate, polar_u_fer, polar_c, eve_intercept, det_eff, det_dc))
                         if res.get('exec_time') is not None:
                             data[p]["scale_size"].append(size)
                             data[p]["scale_time"].append(res['exec_time'])
@@ -309,6 +314,8 @@ def run_simulation(request):
                         marker, color = '^-', 'green'
                     elif 'ldpc' in p:
                         marker, color = 's-', 'red'
+                    elif 'polar' in p:
+                        marker, color = 'd-', 'orange'
                     else: # Fallback
                         marker, color = 'x-', 'black'
                     
