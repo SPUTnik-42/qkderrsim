@@ -1,0 +1,94 @@
+================================================================================
+                  BB84 Simulation & Protocol Parameters
+================================================================================
+This file documents all configurable parameters across the BB84 simulation
+framework and error correction/privacy amplification protocols.
+
+--------------------------------------------------------------------------------
+1. Orchestration & Main Simulation (bb84_server_client.py)
+--------------------------------------------------------------------------------
+Main Simulation Seeds:
+  - seed_alice     : 1001 (default)
+  - seed_bob       : 1002 (default)
+  - seed_channel   : 1003 (default)
+  - seed_detector  : 1004 (default)
+
+--------------------------------------------------------------------------------
+2. Physical Actors (bb84_server_client.py)
+--------------------------------------------------------------------------------
+AliceServer:
+  - num_qubits         : Number of qubits to transmit (default in main: 5000)
+  - verbose            : default = False
+  - seed               : default = None
+
+BobClient:
+  - protocol           : Error correction protocol (default = "cascade")
+                         (Options: "cascade", "winnow", "ldpc_rateadaptive", 
+                          "nr_ldpc_standard", "polar")
+  - pa_protocol        : Privacy amplification protocol (default = "toeplitz")
+                         (Options: "toeplitz", "shake256")
+  - verbose            : default = False
+  - seed               : default = None
+  - protocol_params    : default = None (Custom parameters dictionary for EC)
+
+QuantumChannel:
+  - length_km          : Distance in km (default in main: 50)
+  - attenuation_db     : Loss per km (default in main: 0.2)
+  - optical_error_rate : General error rate applied (default in main: 0.01/0.05)
+  - seed               : default = None
+
+Detector:
+  - efficiency         : Detection probability (default in main: 0.8)
+  - dark_count_prob    : False positive rate (default in main: 0.01)
+  - seed               : default = None
+
+Eve (Eavesdropper):
+  - intercept_rate     : Fraction of photons measured (default = 0.2)
+  - seed               : default = None
+
+--------------------------------------------------------------------------------
+3. Error Correction Protocols
+--------------------------------------------------------------------------------
+
+Cascade Protocol (cascade_refactored.py)
+  - num_passes         : number of iteration passes (default = 4)
+  - verbose            : default = True
+
+Winnow Protocol (winnow_refactored.py)
+  - num_passes         : number of iteration passes (default = 6)
+  - verbose            : default = True
+
+Rate-Adaptive LDPC (ldpc_rateadaptive.py)
+  - r_max              : Maximum mother code rate (default = 0.333)
+  - verbose            : default = True
+  - seed               : default = None
+  - f_efficiency       : Target efficiency margin (internal default = 1.2)
+  - w_degree           : Sample size block degree (internal default = 8)
+  - MAX_K              : Max block chunk size (internal limit = 3000)
+
+Standard NR-LDPC (nr_ldpc_standard.py)
+  - rate               : Target code rate R=k/n (default = 0.333)
+  - verbose            : default = True
+  - seed               : default = None
+  - margin             : Safety margin multiplier (internal default = 1.2)
+  - reliability        : LLR fixed reliability magnitude (internal default = 10.0)
+  - MAX_K              : Max block chunk size (internal limit = 4000)
+
+Polar Codes (polar_codes.py)
+  - u_fer_target       : Target Frame Error Rate (default = 0.01)
+  - c                  : Constant parameter for channel limit (default = 0.5)
+  - verbose            : default = True
+
+--------------------------------------------------------------------------------
+4. Privacy Amplification (privacy_amplification.py)
+--------------------------------------------------------------------------------
+PrivacyAmplification:
+  - security_parameter : Size parameter (S) dictating remaining key security (default = 10)
+  - algorithm          : Selection during apply_hash() (default = 'toeplitz')
+                         (Options: 'toeplitz', 'shake256')
+
+--------------------------------------------------------------------------------
+5. Pseudo-Random Number Generation (prng.py)
+--------------------------------------------------------------------------------
+PRNG:
+  - seed               : Seed used for deterministic reproducibility (default = None)

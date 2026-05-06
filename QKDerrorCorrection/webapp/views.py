@@ -312,8 +312,10 @@ def run_simulation(request):
                         marker, color = 'o-', 'blue'
                     elif 'winnow' in p:
                         marker, color = '^-', 'green'
+                    elif 'nr_ldpc_std' in p:
+                        marker, color = 's-', 'purple'
                     elif 'ldpc' in p:
-                        marker, color = 's-', 'red'
+                        marker, color = 'v-', 'red'
                     elif 'polar' in p:
                         marker, color = 'd-', 'orange'
                     else: # Fallback

@@ -19,8 +19,10 @@ from cascade_refactored import CascadeClientProtocol, ParityOracle
 # from qc_ldpc_v3 import QCLDPCv3ClientProtocol
 # from nr_ldpc_bb84 import NR_LDPC_ClientProtocol
 from nr_ldpc_standard import NR_LDPC_Standard_ClientProtocol
+from ldpc_rateadaptive import LDPC_RateAdaptive_ClientProtocol
 from winnow_refactored import WinnowClientProtocol
 from polar_codes import PolarClientProtocol
+from privacy_amplification import PrivacyAmplification
 import time
 
 # --- Logging Configuration ---
@@ -165,6 +167,7 @@ class AliceServer(Actor):
                              # Need to keep original indices or photon ids mapping? 
                              # The PRD says "Alice -> Bob: Matching basis indices"
         self.sifted_bits = [] # Actual bits
+        self.final_secret_key = [] # PA key
         self.verbose = verbose
 
     async def run_quantum_transmission(self):
@@ -206,6 +209,8 @@ class AliceServer(Actor):
             return self._api_parity(data)
         elif endpoint == "/block-parity":
             return self._api_block_parity(data)
+        elif endpoint == "/privacy-amplification":
+            return self._api_pa(data)
         else:
             raise ValueError(f"Unknown endpoint {endpoint}")
 
@@ -314,6 +319,18 @@ class AliceServer(Actor):
         results = [self._par_calc(b) for b in blocks]
         return {"parities": results}
 
+    def _api_pa(self, data):
+        seed = data["seed"]
+        qber = data["qber"]
+        pa_protocol = data.get("pa_protocol", "toeplitz")
+        
+        if self.verbose:
+            print(f"[ALICE] Applying Privacy Amplification ({pa_protocol}) with seed {seed} and QBER {qber:.4%}")
+        
+        pa = PrivacyAmplification(self.sifted_bits, qber)
+        self.final_secret_key = pa.apply_hash(seed, algorithm=pa_protocol)
+        return {"status": "success", "pa_key_length": len(self.final_secret_key)}
+
 # --- API CLIENT ADAPTER ---
 
 class APIClient(ParityOracle):
@@ -333,14 +350,19 @@ class APIClient(ParityOracle):
     async def get_parities(self, blocks: List[List[int]]) -> List[int]:
         resp = await self.post("/block-parity", {"blocks": blocks})
         return resp["parities"]
+        
+    async def apply_privacy_amplification(self, seed: int, qber: float, pa_protocol: str = "toeplitz"):
+        resp = await self.post("/privacy-amplification", {"seed": seed, "qber": qber, "pa_protocol": pa_protocol})
+        return resp
 
 # --- BOB (CLIENT) ---
 
 class BobClient(Actor):
-    def __init__(self, name, api_client: APIClient, protocol="cascade", seed=None, verbose=False, protocol_params=None):
+    def __init__(self, name, api_client: APIClient, protocol="cascade", pa_protocol="toeplitz", seed=None, verbose=False, protocol_params=None):
         super().__init__(name, seed)
         self.api = api_client
         self.protocol = protocol.lower()
+        self.pa_protocol = pa_protocol.lower()
         self.verbose = verbose
         self.received_events = [] # List[DetectionEvent]
         self.protocol_params = protocol_params if protocol_params else {}
@@ -428,41 +450,41 @@ class BobClient(Actor):
         t_start = time.time()
         
         est_qber = qber if qber > 0 else 0.01
+        # Normalize working key bits to integers (0/1) and guard empty key
+        clean_key_bob = [int(bool(b)) for b in clean_key_bob]
+        # If there are no bits left after sampling, skip reconciliation
+        if len(clean_key_bob) == 0:
+            print(f"[BOB] No bits left after sampling (n_sifted={n_sifted}). Aborting reconciliation.")
+            exec_time = time.time() - t_start
+            return {
+                "sifted_length": n_sifted,
+                "qber": qber,
+                "final_length": 0,
+                "pa_length": 0,
+                "pa_time": 0.0,
+                "revealed": 0,
+                "corrected": 0,
+                "channel_uses": 0,
+                "corrected_key": [],
+                "final_secret_key": [],
+                "exec_time": exec_time
+            }
 
         if self.protocol == "cascade":
             passes = int(self.protocol_params.get('num_passes', 4))
             protocol = CascadeClientProtocol(num_passes=passes, verbose=self.verbose)
             corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
-        # elif self.protocol == "ldpc":
-        #     # Generate deterministic seed for protocol from Bob's PRNG
-        #     proto_seed = self.prng.randint(0, 2**32 - 1)
-        #     rate = self.protocol_params.get('rate', "adaptive")
-        #     protocol = QCLDPCClientProtocol(verbose=self.verbose, rate=rate, seed=proto_seed)
-        #     corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
-        # elif self.protocol == "ldpc_v2" or self.protocol == "ldpcv2":
-        #     # Generate deterministic seed for protocol from Bob's PRNG
-        #     proto_seed = self.prng.randint(0, 2**32 - 1)
-        #     # Use "adaptive" rate
-        #     rate = self.protocol_params.get('rate', "adaptive")
-        #     protocol = QCLDPCv2ClientProtocol(verbose=self.verbose, rate=rate, seed=proto_seed)
-        #     corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
-        # elif self.protocol == "ldpc_v3" or self.protocol == "qc_ldpc_v3" or self.protocol == "ldpcv3":
-        #     # Generate deterministic seed for protocol from Bob's PRNG
-        #     proto_seed = self.prng.randint(0, 2**32 - 1)
-        #     # Use "adaptive" rate
-        #     rate = self.protocol_params.get('rate', "adaptive")
-        #     protocol = QCLDPCv3ClientProtocol(verbose=self.verbose, rate=rate, seed=proto_seed)
-        #     corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
-        # elif self.protocol == "ldpc_5g" or self.protocol == "nr_ldpc":
-        #     proto_seed = self.prng.randint(0, 2**32 - 1)
-        #     print("[BOB] Selected Protocol: 5G NR LDPC (Sionna) with HARQ-IR")
-        #     protocol = NR_LDPC_ClientProtocol(verbose=self.verbose, seed=proto_seed)
-        #     corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
         elif self.protocol == "ldpc_5g_std" or self.protocol == "nr_ldpc_std" or self.protocol == "nr_ldpc_standard":
             proto_seed = self.prng.randint(0, 2**32 - 1)
             target_rate = self.protocol_params.get('rate', 0.33)
             print(f"[BOB] Selected Protocol: 5G NR LDPC (Sionna) Standard Fixed Rate (R={target_rate})")
             protocol = NR_LDPC_Standard_ClientProtocol(verbose=self.verbose, seed=proto_seed, rate=target_rate)
+            corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
+        elif self.protocol == "ldpc_rateadaptive":
+            proto_seed = self.prng.randint(0, 2**32 - 1)
+            r_max = self.protocol_params.get('r_max', 0.333)
+            print(f"[BOB] Selected Protocol: Rate-Adaptive LDPC (R_max={r_max})")
+            protocol = LDPC_RateAdaptive_ClientProtocol(verbose=self.verbose, seed=proto_seed, r_max=r_max)
             corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
         elif self.protocol == "winnow":
             num_passes = int(self.protocol_params.get('num_passes', 4))
@@ -482,6 +504,31 @@ class BobClient(Actor):
              protocol = CascadeClientProtocol(num_passes=num_passes, verbose=self.verbose)
              corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
 
+        # --- Privacy Amplification ---
+        final_secret_key = []
+        pa_length = 0
+        pa_time = 0.0
+  
+        if len(corrected_key) > 0 and qber < 1.0:
+            print(f"\n[BOB] Starting Privacy Amplification using {self.pa_protocol}...")
+            # Bob randomly chooses a seed for the pseudo-random hashing family
+
+            shared_seed = self.prng.randint(0, 2**32 - 1)
+            
+            pa_time_start = time.time()
+            pa = PrivacyAmplification(corrected_key, qber)
+            pa.log_metrics()
+            
+            final_secret_key = pa.apply_hash(seed=shared_seed, algorithm=self.pa_protocol)
+            pa_time_end = time.time()
+            
+            pa_length = pa.R
+            pa_time = pa_time_end - pa_time_start
+            
+            # Send seed to Alice over classical authenticated channel
+            await self.api.apply_privacy_amplification(shared_seed, qber, self.pa_protocol)
+            print(f"[BOB] Sent PA seed and protocol choice to Alice. Generated secret key of length {pa_length}.")
+
         exec_time = time.time() - t_start
 
         # Return metrics
@@ -489,10 +536,13 @@ class BobClient(Actor):
             "sifted_length": n_sifted,
             "qber": qber,
             "final_length": len(corrected_key),
+            "pa_length": pa_length,
+            "pa_time": pa_time,
             "revealed": revealed,
             "corrected": errors_cor,
             "channel_uses": uses,
             "corrected_key": corrected_key,
+            "final_secret_key": final_secret_key,
             "exec_time": exec_time
         }
 
@@ -534,8 +584,8 @@ async def run_server_client_simulation():
     alice = AliceServer("AliceServer", channel, num_qubits=5000, verbose=True, seed=seed_alice)
     api = APIClient(alice)
     
-    # Use Polar Codes
-    bob = BobClient("BobClient", api, protocol="polar", seed=seed_bob, verbose=True)
+    # Use Polar Codes with Toeplitz Privacy Amplification
+    bob = BobClient("BobClient", api, protocol="polar", pa_protocol="toeplitz", seed=seed_bob, verbose=True)
     
     detector = Detector("Detector", 0.8, 0.01, parent_bob=bob, seed=seed_detector)
     
@@ -572,8 +622,16 @@ async def run_server_client_simulation():
     for a, b in zip(alice_final_key, bob_final_key):
         if a == b: matches += 1
     
-    print(f"Final Key Match: {matches}/{len(alice_final_key)} ({(matches/len(alice_final_key) if len(alice_final_key)>0 else 0):.2%})")
+    print(f"Error-Corrected Key Match: {matches}/{len(alice_final_key)} ({(matches/len(alice_final_key) if len(alice_final_key)>0 else 0):.2%})")
     
+    # Verify Final PA Keys Match
+    alice_pa_key = alice.final_secret_key
+    bob_pa_key = results["final_secret_key"]
+    if results["pa_length"] > 0:
+        pa_matches = sum(1 for a, b in zip(alice_pa_key, bob_pa_key) if a == b)
+        print(f"\nPA Key Match: {pa_matches}/{results['pa_length']} ({(pa_matches/results['pa_length']):.2%})")
+        print(f"Final Shared Secret ({bob.pa_protocol.upper()}) first 50 bits: {''.join(map(str, bob_pa_key[:50]))}")
+        
     # Stop actors
     for a in actors: await a.send(a, ("STOP",))
     await asyncio.gather(*tasks)

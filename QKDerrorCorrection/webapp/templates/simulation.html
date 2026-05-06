@@ -182,6 +182,7 @@
                         <div class="protocols-group">
                              <label><input type="checkbox" name="protocols" value="cascade" {% if not params or 'cascade' in params.protocols %}checked{% endif %}> Cascade</label>
                              <label><input type="checkbox" name="protocols" value="nr_ldpc_std" {% if 'nr_ldpc_std' in params.protocols %}checked{% endif %}> NR-LDPC Standard</label>
+                             <label><input type="checkbox" name="protocols" value="ldpc_rateadaptive" {% if 'ldpc_rateadaptive' in params.protocols %}checked{% endif %}> Rate-Adaptive LDPC</label>
                              <label><input type="checkbox" name="protocols" value="winnow" {% if 'winnow' in params.protocols %}checked{% endif %}> Winnow</label>
                              <label><input type="checkbox" name="protocols" value="polar" {% if 'polar' in params.protocols %}checked{% endif %}> Polar Codes</label>
                         </div>
