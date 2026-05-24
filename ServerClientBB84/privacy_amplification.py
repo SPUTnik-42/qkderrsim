@@ -4,20 +4,24 @@ import hashlib
 from typing import List
 
 class PrivacyAmplification:
-    def __init__(self, key: List[int], qber: float, security_parameter: int = 10):
+    def __init__(self, key: List[int], qber: float, security_parameter: int = 10, q1: float = 1.0, ec_leakage: int = 0):
         self.key = key
         self.N = len(key)
         self.qber = qber
         self.S = security_parameter
+        self.q1 = q1
+        self.ec_leakage = ec_leakage
 
-        # Calculate V(e) using Shannon Information 
-        if self.qber <= 0.0 or self.qber >= 1.0:
-            self.V_e = 1.0
+        if self.qber <= 0.0 or self.qber >= 0.5:
+            h_qber = 1.0
         else:
-            self.V_e = 1.0 + (self.qber * math.log2(self.qber)) + ((1.0 - self.qber) * math.log2(1.0 - self.qber))
+            h_qber = - (self.qber * math.log2(self.qber)) - ((1.0 - self.qber) * math.log2(1.0 - self.qber))
+
+        # Total bits Eve knows = Multi-photon bits + Phase error information + Error correction leakage
+        # Uses explicitly provided exact EC leakage.
+        ec_info_leak = self.ec_leakage
             
-        # The anticipated bits of information that Eve knows is estimated to be t = N * V_e
-        self.t = math.ceil(self.N * self.V_e)
+        self.t = math.ceil(self.N * (1.0 - self.q1) + self.N * h_qber + ec_info_leak)
         
         # Calculate R (final key length)
         # Security parameter bound constraint: [0 < S <= N - t]
@@ -107,7 +111,7 @@ class PrivacyAmplification:
         print("="*45)
         print(f" [+] Reconciled Key Length (N):      {self.N} bits")
         print(f" [+] QBER (e):                       {self.qber:.4%}")
-        print(f" [+] Information Leakage Rate (Ve):  {self.V_e:.6f}")
+         
         print(f" [+] Est. Eve's Knowledge Bound (t): {self.t} bits")
         print(f" [+] Security Parameter (S):         {self.S} bits")
         print(f" [+] Final Secret Key Length (R):    {self.R} bits")

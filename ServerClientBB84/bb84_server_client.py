@@ -24,6 +24,7 @@ from winnow_refactored import WinnowClientProtocol
 from polar_codes import PolarClientProtocol
 from privacy_amplification import PrivacyAmplification
 import time
+import numpy as np
 
 # --- Logging Configuration ---
 logging.basicConfig(level=logging.ERROR, format='%(message)s')
@@ -35,6 +36,7 @@ class Photon:
     basis: Basis
     creation_time: str
     wavelength_nm: float = 1550.0
+    count: int = 1
 
 @dataclass
 class DetectionEvent:
@@ -81,13 +83,20 @@ class QuantumChannel(Actor):
             await self.send(self.next_actor, msg)
             return
 
-        if self.prng.random() > self.transmittance: return # Photon lost
+        if msg.count == 0:
+            return  # No photon sent
 
+        # Probability that at least one photon survives
+        p_survive = 1.0 - (1.0 - self.transmittance)**msg.count
+        if self.prng.random() > p_survive: 
+            return # All photons lost
+
+        # For simplicity, if arrived, we trace it as a single pulse with count=msg.count
         final_bit = msg.bit
         if self.prng.random() < self.optical_error_rate:
             final_bit = 1 - final_bit 
 
-        out_photon = Photon(msg.id, final_bit, msg.basis, msg.creation_time)
+        out_photon = Photon(msg.id, final_bit, msg.basis, msg.creation_time, count=msg.count)
         await self.send(self.next_actor, out_photon)
 
 class Detector(Actor):
@@ -111,7 +120,8 @@ class Detector(Actor):
             bob_basis = self.prng.get_basis()
 
         if not click and isinstance(msg, Photon):
-            if self.prng.random() < self.eta:
+            p_detect = 1.0 - (1.0 - self.eta)**msg.count
+            if self.prng.random() < p_detect:
                 click = True
                 source = "Signal"
                 bob_basis = self.prng.get_basis()
@@ -158,10 +168,11 @@ class Eve(Actor):
 # --- ALICE (SERVER) ---
 
 class AliceServer(Actor):
-    def __init__(self, name, channel, num_qubits, verbose=False, seed=None):
+    def __init__(self, name, channel, num_qubits, mu=1.0, verbose=False, seed=None):
         super().__init__(name, seed)
         self.channel = channel
         self.num_qubits = num_qubits
+        self.mu = mu
         self.sent_log = {}  # photon_id -> Photon
         self.sifted_key = [] # Stores (bit, photon_id) or just bits. 
                              # Need to keep original indices or photon ids mapping? 
@@ -179,8 +190,9 @@ class AliceServer(Actor):
         for i in range(self.num_qubits):
             bit = self.prng.get_bit()
             basis = self.prng.get_basis()
+            count = np.random.poisson(self.mu)
             t_now = datetime.datetime.now().strftime("%H:%M:%S.%f")
-            p = Photon(id=i, bit=bit, basis=basis, creation_time=t_now)
+            p = Photon(id=i, bit=bit, basis=basis, creation_time=t_now, count=count)
             
             # Store only what is needed
             self.sent_log[i] = p
@@ -323,11 +335,13 @@ class AliceServer(Actor):
         seed = data["seed"]
         qber = data["qber"]
         pa_protocol = data.get("pa_protocol", "toeplitz")
+        q1 = data.get("q1", 1.0)
+        ec_leakage = data.get("ec_leakage", 0)
         
         if self.verbose:
             print(f"[ALICE] Applying Privacy Amplification ({pa_protocol}) with seed {seed} and QBER {qber:.4%}")
         
-        pa = PrivacyAmplification(self.sifted_bits, qber)
+        pa = PrivacyAmplification(self.sifted_bits, qber, q1=q1, ec_leakage=ec_leakage)
         self.final_secret_key = pa.apply_hash(seed, algorithm=pa_protocol)
         return {"status": "success", "pa_key_length": len(self.final_secret_key)}
 
@@ -351,8 +365,11 @@ class APIClient(ParityOracle):
         resp = await self.post("/block-parity", {"blocks": blocks})
         return resp["parities"]
         
-    async def apply_privacy_amplification(self, seed: int, qber: float, pa_protocol: str = "toeplitz"):
-        resp = await self.post("/privacy-amplification", {"seed": seed, "qber": qber, "pa_protocol": pa_protocol})
+    async def apply_privacy_amplification(self, seed: int, qber: float, pa_protocol: str = "toeplitz", q1: float = 1.0, ec_leakage: int = 0):
+        resp = await self.post("/privacy-amplification", {
+            "seed": seed, "qber": qber, "pa_protocol": pa_protocol, 
+            "q1": q1, "ec_leakage": ec_leakage
+        })
         return resp
 
 # --- BOB (CLIENT) ---
@@ -371,7 +388,7 @@ class BobClient(Actor):
         if isinstance(msg, DetectionEvent):
             self.received_events.append(msg)
 
-    async def run_classical_post_processing(self, num_input_qubits):
+    async def run_classical_post_processing(self, num_input_qubits, q1=1.0):
         # 1. Sifting
         # Prepare payload: list of (id, basis)
         bases_payload = []
@@ -516,7 +533,7 @@ class BobClient(Actor):
             shared_seed = self.prng.randint(0, 2**32 - 1)
             
             pa_time_start = time.time()
-            pa = PrivacyAmplification(corrected_key, qber)
+            pa = PrivacyAmplification(corrected_key, qber, q1=q1, ec_leakage=revealed)
             pa.log_metrics()
             
             final_secret_key = pa.apply_hash(seed=shared_seed, algorithm=self.pa_protocol)
@@ -526,7 +543,7 @@ class BobClient(Actor):
             pa_time = pa_time_end - pa_time_start
             
             # Send seed to Alice over classical authenticated channel
-            await self.api.apply_privacy_amplification(shared_seed, qber, self.pa_protocol)
+            await self.api.apply_privacy_amplification(shared_seed, qber, self.pa_protocol, q1=q1, ec_leakage=revealed)
             print(f"[BOB] Sent PA seed and protocol choice to Alice. Generated secret key of length {pa_length}.")
 
         exec_time = time.time() - t_start
@@ -602,8 +619,21 @@ async def run_server_client_simulation():
     await asyncio.sleep(1.0)
     
     # Setup Classical Phase
+    # Calculate q1 dynamically based on parameters
+    T = channel.transmittance
+    eta = detector.eta
+    mu = alice.mu
     # Bob initiates
-    results = await bob.run_classical_post_processing(alice.num_qubits)
+    p_sig = 1.0 - np.exp(-mu * T * eta)
+    p_dark = 2 * detector.p_dc
+    p_click = p_sig + p_dark - (p_sig * p_dark)
+    
+    # Calculate Eve's potential PNS attack multi-photon bound
+    p_multi = 1.0 - (1.0 + mu) * np.exp(-mu)
+    q1 = max(0.0, 1.0 - (p_multi / p_click)) if p_click > 0 else 0.0
+    
+    # Bob initiates
+    results = await bob.run_classical_post_processing(alice.num_qubits, q1=q1)
     
     print("\n--- RESULTS ---")
     print(f"Sifted Key Length: {results['sifted_length']}")

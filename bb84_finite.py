@@ -129,9 +129,9 @@ class Protocol:
         
         Q_exp = (err_sig + err_dark) / p_click
         
-        # Multi-photon penalty (PNS bounding): calculate fraction of secure single photons
-        Q_1 = (mu * np.exp(-mu)) * (T * eta)
-        q_1 = Q_1 / p_click
+        # Multi-photon penalty (PNS bounding): worst-case scenario where Eve forwards all multi-photons
+        p_multi = 1.0 - (1.0 + mu) * np.exp(-mu)
+        q_1 = max(0.0, 1.0 - (p_multi / p_click))
         
         return p_click, Q_exp, q_1
     
@@ -295,120 +295,51 @@ class Protocol:
         self.channel.L = original_L
         return np.array(rates)
 
-    # def _optimize_params(self, N, p_click, Q_exp, initial_guess=None):
-    #     """
-    #     Internal optimization function.
-    #     """
-        
-    #     # Scaling factor to help optimizer with small numbers
-    #     SCALE = 1e7
 
-    #     def objective(params):
-    #         k_frac, delta = params
+    def skr_vs_mu(self, mu_values, fixed_N):
+        rates = []
+        original_mu = self.source.mu
+        
+        # Warm start initialization
+        current_params = [0.1, 0.02] 
+        last_valid_rate = 0.0
+        
+        for i, mu_val in enumerate(mu_values):
+            self.source.mu = mu_val
+            r, params = self.calculate_skr(fixed_N, x0=current_params)
             
-    #         # Constraints check (soft boundaries handled by bounds, hard checks here)
-    #         if k_frac <= 0.0001 or k_frac >= 0.999: return 1e9
-    #         if delta <= 0.0 or delta >= 0.5: return 1e9
+            # Smoothness check: detect unrealistic jumps
+            if i > 0 and r > 0 and last_valid_rate > 0:
+                ratio = r / last_valid_rate
+                if ratio > 10.0 or ratio < 0.1:
+                    r_retry, params_retry = self.calculate_skr(fixed_N, x0=current_params)
+                    if r_retry > 0:
+                        r, params = r_retry, params_retry
             
-    #         k = k_frac * N
-    #         n = N - k
+            rates.append(r)
             
-    #         if k < 1 or n < 1: return 1e9
-            
-    #         # 1. Calculate mu
-    #         term1 = N / (n * k)
-    #         term2 = (k + 1) / k
-    #         term3 = np.log(4 / self.es)
-    #         mu = np.sqrt(term1 * term2 * term3)
-            
-    #         Q_tol = Q_exp + delta
-            
-    #         if Q_tol + mu >= 0.5: return 1e9
-            
-    #         # 2. Calculate Robustness (er)
-    #         # er = exp(-2 * k * delta^2)
-    #         er = np.exp(-2 * k * (delta**2))
-            
-    #         if er > 0.99: return 1e9
-            
-    #         # 3. Calculate Key Length (ell)
-    #         leak_ec = n * self.xi * self.h(Q_tol)
-    #         term_privacy = n * (self.source.q - self.h(Q_tol + mu))
-    #         term_security = np.log2(2 / (self.es**2 * self.ec))
-            
-    #         ell = term_privacy - leak_ec - term_security
-            
-    #         if ell <= 0: return 1e9
-            
-    #         # 4. Calculate Expected Rate
-    #         # Optimal probability p_x
-    #         p_x = 1.0 / (1.0 + np.sqrt(k/n))
-            
-    #         # M is total pulses sent
-    #         M = n / (p_click * p_x**2)
-            
-    #         skr_pulse = (1 - er) * ell / M
-            
-    #         return -skr_pulse * SCALE
+            # Update warm start only if we have a valid, reasonable result
+            if r > 0:
+                current_params = params
+                last_valid_rate = r
+                
+        self.source.mu = original_mu
+        return np.array(rates)
 
-    #     # Use provided initial guess or default
-    #     x0 = initial_guess if initial_guess is not None else [0.1, 0.02]
+    def skr_vs_block_size(self, N_values):
+        rates = []
+        # Warm start initialization
+        current_params = [0.1, 0.02] 
         
-    #     # Relaxed bounds: k_frac down to 0.0001
-    #     bounds = [(0.0001, 0.9), (0.001, 0.2)]
-        
-    #     res = minimize(objective, x0, method='L-BFGS-B', bounds=bounds, tol=1e-9)
-        
-    #     if res.success:
-    #         return (-res.fun / SCALE), res.x
-    #     else:
-    #         return 0.0, x0
+        for N in N_values:
+            r, params = self.calculate_skr(N, x0=current_params)
+            rates.append(r)
+            # Only update warm start if we found a valid key rate
+            if r > 0:
+                current_params = params
+        return np.array(rates)
 
-    # def calculate_skr(self, N, x0=None):
-    #     """
-    #     Calculates the optimized Secret Key Rate (bits/sec).
-    #     Returns (rate, optimal_params)
-    #     """
-    #     p_click, Q_exp = self.calculate_system_params()
-        
-    #     if Q_exp >= 0.4: # Safety cutoff
-    #         return 0.0, x0
-            
-    #     rate_per_pulse, best_params = self._optimize_params(N, p_click, Q_exp, x0)
-        
-    #     # Rate in bits/sec
-    #     return rate_per_pulse * self.source.freq, best_params
 
-    # def skr_vs_block_size(self, N_values):
-    #     rates = []
-    #     # Warm start initialization
-    #     current_params = [0.1, 0.02] 
-        
-    #     for N in N_values:
-    #         r, params = self.calculate_skr(N, x0=current_params)
-    #         rates.append(r)
-    #         # Only update warm start if we found a valid key rate
-    #         if r > 0:
-    #             current_params = params
-    #     return np.array(rates)
-
-    # def skr_vs_distance(self, dist_values, fixed_N):
-    #     rates = []
-    #     original_L = self.channel.L
-        
-    #     # Warm start initialization
-    #     current_params = [0.1, 0.02]
-        
-    #     for L in dist_values:
-    #         self.channel.L = L
-    #         r, params = self.calculate_skr(fixed_N, x0=current_params)
-    #         rates.append(r)
-    #         # Update warm start parameters to follow the curve
-    #         if r > 0:
-    #             current_params = params
-            
-    #     self.channel.L = original_L
-    #     return np.array(rates)
 
 
 def main():
@@ -452,6 +383,21 @@ def main():
     plt.ylabel(f'Secret Key Rate (bits/sec)')
     plt.title(f'SKR vs Distance ($N=10^8$, Freq={freq/1e6} MHz ,{channel.channel_mode})')
     plt.grid(True, which="both", ls="--", alpha=0.7)
+    
+    # --- Plot 3: SKR vs Mean Photon Number (mu) ---
+    print("Simulating SKR vs Mean Photon Number (mu)...")
+    channel.L = 50.0  # Set distance to a fixed functional distance like 50 km
+    mu_values = np.linspace(0.01, 1.5, 40)
+    rates_mu = protocol.skr_vs_mu(mu_values, fixed_N)
+
+    plt.figure(figsize=(10, 6))
+    plt.plot(mu_values, rates_mu, 'g-', linewidth=2)
+    plt.xlabel('Mean Photon Number ($\\mu$)')
+    plt.ylabel('Secret Key Rate (bits/sec)')
+    plt.title(f'SKR vs Mean Photon Number ($N=10^8$, L={channel.L}km, Freq={freq/1e6} MHz)')
+    plt.grid(True, which="both", ls="--", alpha=0.7)
+    plt.gca().yaxis.set_major_formatter(ScalarFormatter(useMathText=True))
+    plt.ticklabel_format(style='sci', axis='y', scilimits=(0,0))
     
     plt.show()
 

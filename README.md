@@ -5,19 +5,24 @@ This project is dedicated to experimenting with post-processing techniques in Qu
 ## Overview
 
 Currently, the project performs the following:
-*   **BB84 Protocol Simulation**: Simulates the Quantum Bit Error Rate (QBER) and key generation process between Alice and Bob.
-*   **Cascade Protocol**: Implements the Cascade error correction protocol to reconcile keys.
-*   **LDPC Codes**: Experiments with Low-Density Parity-Check (LDPC) codes for error correction (`qc_ldpc`).
-*   **Visualization**: Provides Jupyter notebooks and scripts to visualize the efficiency and performance of different protocols.
+*   **BB84 Protocol Simulation**: Simulates the Quantum Bit Error Rate (QBER) and key generation process between Alice and Bob, including finite-key and asymptotic analyses (e.g., `bb84_finite.py`, `simBB84.py`).
+*   **Error Correction (EC) Protocols**: Implements multiple reconciliation protocols including Cascade, Winnow, Low-Density Parity-Check (LDPC) codes (Standard and Rate-Adaptive), and Polar Codes.
+*   **Privacy Amplification (PA)**: Implements privacy amplification techniques to reduce Eve's information and extract secure cryptographic keys.
+*   **Visualization & Analysis**: Provides extensive Jupyter notebooks to optimize, compare, and visualize the efficiency and Secret Key Rates (SKR) of different protocols over varying distances and photon per pulse ($\mu$) values.
 *   **Web Interface**: A Django-based web application to interact with and visualize the simulations.
 
 ## Project Structure
 
+*   `PostProcessingToolbox/`: A comprehensive toolbox containing modules for QKD post-processing, including error correction (Cascade, Winnow, LDPC, Polar Codes) and privacy amplification.
 *   `ActorBasedBB84/`: Contains implementations of the simple BB84 protocol and Cascade using an actor-based model.
-*   `ServerClientBB84/`: Contains server-client implementations of BB84, refactored Cascade protocol, and LDPC code experiments.
-*   `QKDerrorCorrection/`: The Django web application for the project.
-*   `Dev/`: Development scripts and notebooks for testing and visualizing different actor-based approaches and comparisons.
-*   `Visualization_*.ipynb`: Jupyter notebooks for visualizing simulation results.
+*   `ServerClientBB84/`: Contains server-client implementations of BB84 alongside refactored EC and PA protocols.
+*   `QKDerrorCorrection/`: The Django web application for configuring and visualizing QKD error correction simulations.
+*   `Dev/`: Development scripts and notebooks for visualizing results and testing alternate approaches.
+*   `*.ipynb` (Root Directory Jupyter Notebooks): Comprehensive notebooks for varying use-cases:
+    *   **Demonstrations**: `BB84_API_Demo.ipynb`, `Cascade_Demo.ipynb`, `PostProcessingToolbox_Demo.ipynb`.
+    *   **Comparisons & PA/EC Analysis**: `Visualization_Comparison_EC.ipynb`, `Visualization_Comparison_PA.ipynb`.
+    *   **Simulations & Optimization**: `SKR_Optimization_GridSearch.ipynb`, `finite_vs_asymptotic_qkd.ipynb`, `Finite_vs_ServerClient_Multiple_Protocols.ipynb`, and `Finite_vs_ServerClient_SKR_vs_Distance_Mu.ipynb`.
+
 
 ## Setup and Installation
 

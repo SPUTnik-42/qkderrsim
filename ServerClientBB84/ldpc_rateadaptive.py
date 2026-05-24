@@ -207,6 +207,18 @@ class LDPC_RateAdaptive_ClientProtocol:
         # Parity bits needed = K * H(p) + safety margin. 
         # This replaces the noisy-channel capacity formula that was improperly applied.
         required_parities = int(k_target * h_p * 1.5)
+        # Apply lower bounds: For high QBERs, f(QBER)*H(QBER) approaches or exceeds 1.
+        # Ensure we have a sensible target for parity bits so we don't zero out or go negative.
+        # Add safety threshold for high QBER
+        if refined_qber >= 0.10:
+             required_parities = int(k_target * h_p * 1.25)
+        elif refined_qber >= 0.05:
+             required_parities = int(k_target * h_p * 1.2)
+        elif refined_qber >= 0.01:
+             required_parities = int(k_target * h_p * 1.15)
+        else:
+             required_parities = int(k_target * h_p * 1.1)
+             
         max_parities = n_mother - k_target
         required_parities = min(max(0, required_parities), max_parities)
         
