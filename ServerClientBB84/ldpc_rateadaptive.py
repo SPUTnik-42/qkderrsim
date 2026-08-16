@@ -316,7 +316,6 @@ class LDPC_RateAdaptive_ClientProtocol:
                 # Corrected key is the systematic portion of the decoded codeword (mapped back)
                 corrected_key = list(decoded_est)
                 
-                
                 for a, b in zip(key, corrected_key):
                     if a != b: 
                         errors_corrected += 1
@@ -365,7 +364,7 @@ class LDPC_RateAdaptive_ClientProtocol:
         
         # Add hash leakage explicitly to the total protocol revelation cost
         self.bits_revealed += len(verification_blocks)
-            
+                
         self.log(f"Confirmation Step: {verified_blocks}/{len(subblocks_indices)} subblocks verified identical.")
         
         return corrected_key, self.bits_revealed, errors_corrected, self.channel_uses
@@ -419,4 +418,3 @@ if __name__ == "__main__":
         print(f"Errors Corrected (Simulated): {errors_corrected}")
 
     asyncio.run(main())
-

@@ -1,0 +1,792 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block title %}Multi-Hop Asym OTP QKD Chain Builder{% endblock %}
+
+{% block content %}
+<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+    .container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 20px;
+    }
+
+    h1 {
+        text-align: center;
+        color: var(--primary-blue);
+        font-weight: 300;
+        margin-bottom: 30px;
+        letter-spacing: 1px;
+    }
+
+    .intro-box {
+        background-color: var(--primary-blue);
+        color: white;
+        padding: 20px 30px;
+        border-radius: 8px;
+        margin-bottom: 30px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+    }
+
+    .intro-box h2 {
+        margin-top: 0;
+        font-size: 1.5rem;
+        color: #fff;
+    }
+
+    .intro-box p {
+        margin-bottom: 0;
+        opacity: 0.9;
+        line-height: 1.6;
+    }
+
+    .sim-layout {
+        width: 100%;
+    }
+
+    .sim-form {
+        display: flex;
+        gap: 30px;
+        align-items: flex-start;
+        width: 100%;
+    }
+
+    .controls {
+        flex: 0 0 350px;
+        position: sticky;
+        top: 20px;
+    }
+
+    .results {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .section-header {
+        background-color: var(--primary-blue);
+        color: white;
+        padding: 15px 20px;
+        cursor: pointer;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+        user-select: none;
+        transition: background-color 0.2s;
+    }
+
+    .section-header:hover {
+        background-color: #1a365d;
+    }
+
+    .section-header .icon {
+        font-size: 0.8em;
+        transition: transform 0.3s;
+    }
+
+    .section-header.active .icon {
+        transform: rotate(180deg);
+    }
+
+    .section-content {
+        padding: 20px;
+        display: none;
+        border-bottom: 1px solid #eee;
+        background: #fff;
+    }
+
+    .section-content.show {
+        display: block;
+        animation: slideDown 0.3s ease-out;
+    }
+
+    @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+
+    .form-group {
+        margin-bottom: 15px;
+    }
+
+    label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: 500;
+        font-size: 0.9em;
+        color: #4a5568;
+    }
+
+    input[type="number"], input[type="text"], select {
+        width: 100%;
+        padding: 8px 12px;
+        border: 1px solid var(--border-color);
+        border-radius: 4px;
+        box-sizing: border-box;
+        transition: border-color 0.2s;
+        background-color: white;
+    }
+
+    input[type="number"]:focus, input[type="text"]:focus, select:focus {
+        outline: none;
+        border-color: var(--secondary-blue);
+        box-shadow: 0 0 0 3px rgba(66, 153, 225, 0.2);
+    }
+
+    .run-btn {
+        width: 100%;
+        background-color: var(--secondary-blue);
+        color: white;
+        border: none;
+        padding: 15px;
+        font-size: 1.1em;
+        font-weight: 600;
+        cursor: pointer;
+        transition: background-color 0.2s;
+    }
+
+    .run-btn:hover {
+        background-color: #3182ce;
+    }
+
+    .run-btn:active {
+        transform: scale(0.98);
+    }
+
+    .graph-card, .panel-card {
+        background: white;
+        margin-bottom: 30px;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        border: 1px solid #e2e8f0;
+    }
+
+    .graph-card img {
+        width: 100%;
+        height: auto;
+        border-radius: 4px;
+    }
+
+    .panel-card .card-header {
+        background-color: var(--primary-blue);
+        color: white;
+        padding: 15px 20px;
+        border-radius: 8px 8px 0 0;
+        margin: -20px -20px 20px;
+    }
+
+    .panel-card .card-body {
+        padding: 0;
+    }
+
+    #network-container {
+        width: 100%;
+        height: 560px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background-color: #f8f9fa;
+        box-shadow: inset 0 0 10px rgba(0,0,0,0.05);
+    }
+
+    .node-editor {
+        background: #fff;
+        border: 1px solid #dee2e6;
+        padding: 15px;
+        border-radius: 8px;
+        margin-top: 15px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+    .btn {
+        width: 100%;
+        border: none;
+        border-radius: 4px;
+        font-weight: 600;
+        padding: 10px 14px;
+        transition: all 0.2s ease;
+        cursor: pointer;
+    }
+
+    .btn-outline-primary {
+        background: white;
+        color: var(--primary-blue);
+        border: 1px solid var(--secondary-blue);
+    }
+
+    .btn-outline-primary:hover {
+        background: #ebf8ff;
+    }
+
+    .btn-outline-danger {
+        background: white;
+        color: #c53030;
+        border: 1px solid #fca5a5;
+    }
+
+    .btn-outline-danger:hover {
+        background: #fff5f5;
+    }
+
+    .btn-outline-secondary {
+        background: white;
+        color: #374151;
+        border: 1px solid #cbd5e1;
+    }
+
+    .btn-primary {
+        background-color: var(--secondary-blue);
+        color: white;
+        border: none;
+        padding: 12px 18px;
+    }
+
+    .btn-primary:hover {
+        background-color: #3182ce;
+    }
+
+    .summary-box {
+        background: #f1f8ff;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        padding: 12px 14px;
+        color: var(--primary-blue);
+        font-size: 0.85rem;
+        margin-top: 12px;
+    }
+
+    .protocols-group {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+        align-items: flex-start;
+    }
+
+    .protocols-group label {
+        margin-bottom: 0;
+        cursor: pointer;
+    }
+
+    .qkd-fixed-label {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 999px;
+        background: #ebf8ff;
+        color: #1a4f8b;
+        border: 1px solid #bfdbfe;
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.4px;
+        text-transform: uppercase;
+    }
+
+    @media (max-width: 980px) {
+        .sim-form {
+            flex-direction: column;
+        }
+
+        .controls {
+            width: 100%;
+            max-width: none;
+            flex-basis: auto;
+            position: static;
+        }
+    }
+
+/* --- Loading overlay --- */
+    .loading-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(255, 255, 255, 0.85);
+        z-index: 9999;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .loading-overlay.show {
+        display: flex;
+    }
+
+    .loading-spinner {
+        width: 60px;
+        height: 60px;
+        border: 6px solid #e2e8f0;
+        border-top-color: var(--secondary-blue);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+    }
+
+    .loading-text {
+        margin-top: 18px;
+        font-size: 1.1em;
+        font-weight: 600;
+        color: var(--primary-blue);
+    }
+
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
+</style>
+
+
+<div class="container">
+    <h1>Multi-Hop Asymmetric OTP QKD</h1>
+
+    <div class="intro-box">
+        <h2>Chain Builder and Protocol Sweep</h2>
+        <p>
+            Configure the relay chain, adjust per-link distance and capacity, and compare the effective key rate across
+            different error-correction and privacy-amplification combinations in a single simulation workflow.
+        </p>
+    </div>
+
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Running simulation…</div>
+    </div>
+
+    <div class="sim-layout">
+        <form method="post" id="simForm" class="sim-form">
+            {% csrf_token %}
+            <input type="hidden" name="chain_data" id="chain_data_input">
+            <input type="hidden" name="qkd_protocol" value="bb84">
+
+            <div class="controls">
+                <div class="panel-card">
+                    <div class="card-header">
+                        <h2 class="mb-0">Control Panel</h2>
+                    </div>
+                    <div class="card-body">
+
+                        <div class="summary-box" id="chain_summary_box">
+                            Total distance: <strong id="summary_total_distance">0 km</strong><br>
+                            Relays: <strong id="summary_relay_count">0</strong>
+                        </div>
+
+
+
+                        <h4 class="text-primary border-bottom pb-1">Error Correction :</h4>
+                        <div class="mb-3">
+                            <div class="protocols-group">
+                                <label><input type="checkbox" name="ec_protocol" value="cascade" {% if 'cascade' in form_data.ec_protocols or form_data.protocol == 'cascade' %}checked{% endif %}> Cascade</label>
+                                <label><input type="checkbox" name="ec_protocol" value="winnow" {% if 'winnow' in form_data.ec_protocols or form_data.protocol == 'winnow' %}checked{% endif %}> Winnow</label>
+                                <label><input type="checkbox" name="ec_protocol" value="polar" {% if 'polar' in form_data.ec_protocols or form_data.protocol == 'polar' %}checked{% endif %}> Polar</label>
+                                <label><input type="checkbox" name="ec_protocol" value="ldpc_rateadaptive" {% if 'ldpc_rateadaptive' in form_data.ec_protocols or form_data.protocol == 'ldpc_rateadaptive' %}checked{% endif %}> LDPC Rate-Adaptive</label>
+                                <label><input type="checkbox" name="ec_protocol" value="nr_ldpc_standard" {% if 'nr_ldpc_standard' in form_data.ec_protocols or form_data.protocol == 'nr_ldpc_standard' %}checked{% endif %}> NR-LDPC Standard</label>
+                            </div>
+                        </div>
+
+                        <h4 class="text-primary border-bottom pb-1">Privacy Amplification :</h4>
+                        <div class="mb-3">
+                            <div class="protocols-group">
+                                <label><input type="checkbox" name="pa_protocol" value="toeplitz" {% if 'toeplitz' in form_data.pa_protocols or form_data.pa_protocol == 'toeplitz' %}checked{% endif %}> Toeplitz</label>
+                                <label><input type="checkbox" name="pa_protocol" value="shake256" {% if 'shake256' in form_data.pa_protocols or form_data.pa_protocol == 'shake256' %}checked{% endif %}> SHAKE-256</label>
+                            </div>
+                        </div>
+
+                        <h4 class="text-primary border-bottom pb-1">Channel:</h4>
+                        <div class="mb-3">
+                            <label class="small fw-bold">Channel Mode</label>
+                            <select name="channel_mode" class="form-select form-select-sm">
+                                <option value="fiber" {% if form_data.channel_mode == 'fiber' %}selected{% endif %}>Fiber</option>
+                                {% comment %} <option value="fso" {% if form_data.channel_mode == 'fso' %}selected{% endif %}>FSO</option> {% endcomment %}
+                            </select>
+                        </div>
+
+                        <h4 class="text-primary border-bottom pb-1">Physics Parameters:</h4>
+                        <div class="mb-2">
+                            <label class="small">Qubits</label>
+                            <input type="number" name="num_qubits" class="form-control form-control-sm" value="{{ form_data.num_qubits|default:'5000' }}" step="100">
+                        </div>
+                        <div class="mb-2">
+                            <label class="small">Source Repetition Rate (Hz)</label>
+                            <input type="number" name="freq" class="form-control form-control-sm" value="{{ form_data.freq|default:'10000000' }}" step="1e6">
+                        </div>
+                        <div class="mb-2">
+                            <label class="small">Mean Photon (μ)</label>
+                            <input type="number" name="mu" class="form-control form-control-sm" value="{{ form_data.mu|default:'0.1' }}" step="0.01">
+                        </div>
+                        <div class="mb-2">
+                            <label class="small">Attenuation (dB/km)</label>
+                            <input type="number" name="att_db_km" class="form-control form-control-sm" value="{{ form_data.att_db_km|default:'0.2' }}" step="0.01">
+                        </div>
+                        <div class="mb-2">
+                            <label class="small">Detector Efficiency</label>
+                            <input type="number" name="det_eff" class="form-control form-control-sm" value="{{ form_data.det_eff|default:'0.8' }}" step="0.01">
+                        </div>
+                        <div class="mb-2">
+                            <label class="small">Dark Count</label>
+                            <input type="number" name="dark_count" class="form-control form-control-sm" value="{{ form_data.dark_count|default:'0.01' }}" step="0.001">
+                        </div>
+
+                        <h4 class="text-primary border-top pt-3 border-bottom pb-1">Network Protocol:</h4>
+                        <div class="mb-2">
+                            <label class="small">Sifting Exchanges (S)</label>
+                            <input type="number" name="sifting_exchanges" class="form-control form-control-sm" value="{{ form_data.sifting_exchanges|default:'3' }}">
+                        </div>
+                        <div class="mb-2">
+                            <label class="small">Overhead Factor (n)</label>
+                            <input type="number" name="overhead_factor" class="form-control form-control-sm" value="{{ form_data.overhead_factor|default:'3' }}">
+                        </div>
+                        <div class="mb-3">
+                            <label class="small">Packet Size (bits)</label>
+                            <input type="number" name="packet_size" class="form-control form-control-sm" value="{{ form_data.packet_size|default:'10000' }}">
+                        </div>
+
+                        <h4 class="text-primary border-bottom pb-1">Relay Sweep:</h4>
+                        <div class="mb-2">
+                            <label class="small fw-bold">Max Relays for Hop Sweep</label>
+                            <input type="number" name="relay_sweep_max" class="form-control form-control-sm" value="{{ form_data.relay_sweep_max|default:'40' }}" min="1">
+                        </div>
+                        <div class="mb-3">
+                            <label class="small fw-bold">Hop Sweep Samples</label>
+                            <input type="number" name="relay_sweep_points" class="form-control form-control-sm" value="{{ form_data.relay_sweep_points|default:'20' }}" min="2">
+                        </div>
+
+                        {% comment %} <input type="hidden" name="total_distance" id="total_distance_input" value="{{ total_distance|default:'0' }}">
+                        <input type="hidden" name="relay_counts" id="relay_counts_input" value="0">
+                        <input type="hidden" name="summary_total_distance" id="summary_total_distance_input" value="{{ total_distance|default:'0' }}">
+                        <input type="hidden" name="summary_relay_count" id="summary_relay_count_input" value="0">
+
+                        <h4 class="text-primary border-top pt-3 border-bottom pb-1">Range Graph:</h4>
+                        <div class="summary-box" style="margin-top: 0;">
+                            Range plot uses the current chain topology summary and the selected EC/PA protocol combinations.
+                        </div> {% endcomment %}
+
+                        <button type="button" id="runSimBtn" class="btn btn-primary w-100 btn-lg shadow-sm" style="margin-top: 10%;" onclick="submitSimulation()">
+                            Run Simulation
+                        </button>
+
+                    </div>
+                </div>
+            </div>
+
+            <div class="results">
+                <div class="panel-card mb-4">
+                    <div class="card-header">
+                        <h2 class="mb-0">Chain Topology</h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3 d-flex gap-2">
+                            <button type="button" class="btn btn-outline-primary" id="btn-add-relay" onclick="splitLink()" disabled>
+                                Insert Relay
+                            </button>
+                            <button type="button" class="btn btn-outline-danger" id="btn-remove-relay" onclick="removeRelay()" disabled>
+                                Remove Relay
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary" onclick="resetChain()">
+                                Reset
+                            </button>
+                        </div>
+
+                        <div id="network-container"></div>
+
+                        <div id="editor-panel" class="node-editor" style="display:none;">
+                            <h6 id="editor-title" style="margin-top:0; margin-bottom: 12px; color: var(--primary-blue);">Edit Link Parameters</h6>
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold">Distance (km)</label>
+                                    <input type="number" class="form-control" id="edit-distance" step="0.1" min="0.1" onchange="updateSegmentData()">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label small fw-bold">Classical Capacity (bps)</label>
+                                    <input type="number" class="form-control" id="edit-capacity" step="1e6" onchange="updateSegmentData()">
+                                    <div class="form-text small">1e9 = 1 Gbps</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {% if submitted %}
+                <div class="panel-card mb-4"> 
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0">Simulation Results</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row text-center mb-4">
+                            <div class="col-md-6">
+                                <div class="text-muted fw-bold">Effective Chain Rate (bps):</div>
+                                <h3 class="text-success">{{ effective_rate }}</h3>
+                                
+                            </div>
+                            <div class="col-md-6">
+                                <div class="text-muted fw-bold">Total Chain Distance (km):</div>
+                                <h3 class="display-6">{{ total_distance }}</h3>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="panel-card mb-4">
+                    <div class="card-header small fw-bold mt-3">Optimal Hop Analysis</div>
+                    <div class="card-body p-1">
+                        <img src="data:image/png;base64,{{ plot_optimal_hops }}" class="img-fluid rounded" style="max-width: 100%; height: auto;">
+                    </div>
+                </div>
+                <div class="panel-card mb-4">
+                    <div class="card-header small fw-bold mt-3">Range Comparison</div>
+                    <div class="card-body p-1">
+                        <img src="data:image/png;base64,{{ plot_range_extension }}" class="img-fluid rounded" style="max-width: 100%; height: auto;">
+                    </div>
+                </div>
+                {% endif %}
+
+                {% if error %}
+                <div class="alert alert-danger mt-3 shadow-sm">
+                    <strong>Error:</strong> {{ error }}
+                </div>
+                {% endif %}
+            </div>
+        </form>
+    </div>
+</div>
+
+<script type="text/javascript">
+    // --- STATE MANAGEMENT ---
+    let segments = []; 
+    let network = null;
+    let selectedType = null; // 'link' or 'node'
+    let selectedIndex = -1;  // Index in segments array or node index
+
+    // Init from server data
+    const serverData = '{{ chain_data|safe }}';
+    try {
+        segments = JSON.parse(serverData);
+    } catch(e) {
+        segments = [{distance: 500, capacity: 1e9}];
+    }
+
+    // --- VIS.JS ZIGZAG VISUALIZATION (UNCHANGED) ---
+    function drawNetwork() {
+        const container = document.getElementById('network-container');
+        const nodes = new vis.DataSet();
+        const edges = new vis.DataSet();
+        
+        // ZIGZAG VISUAL CONFIG
+        const startX = 0;
+        const spacingX = 150; 
+        const zigzagHeight = 80; 
+
+        for (let i = 0; i <= segments.length; i++) {
+            let label = "";
+            let color = "";
+            let shape = "box";
+            let y = 0;
+            let x = startX + (i * spacingX);
+
+            if (i === 0) {
+                label = "Alice\n(Source)";
+                color = "#d1e7dd"; 
+                y = 0;
+                shape = "box";
+            } else if (i === segments.length) {
+                label = "Bob\n(Detector)";
+                color = "#f8d7da"; 
+                y = (i % 2 === 0) ? 0 : zigzagHeight; 
+                shape = "box";
+            } else {
+                label = `Relay ${i}`;
+                color = "#fff3cd"; 
+                y = (i % 2 === 0) ? 0 : zigzagHeight; 
+                shape = "ellipse";
+            }
+
+            nodes.add({
+                id: i,
+                label: label,
+                color: { background: color, border: '#666' },
+                shape: shape,
+                x: x,
+                y: y,
+                fixed: true, 
+                font: { size: 14 }
+            });
+        }
+
+        for (let i = 0; i < segments.length; i++) {
+            edges.add({
+                id: `link-${i}`,
+                from: i,
+                to: i + 1,
+                label: `${segments[i].distance} km`,
+                font: { align: 'horizontal', background: 'white' },
+                arrows: 'to',
+                color: { color: '#0d6efd', highlight: '#0a58ca' },
+                width: 2,
+                length: 200 
+            });
+        }
+
+        const data = { nodes: nodes, edges: edges };
+        const options = {
+            physics: false, 
+            interaction: {
+                dragNodes: true, 
+                zoomView: true,
+                selectConnectedEdges: false
+            }
+        };
+
+        if(network !== null) {
+            network.destroy();
+        }
+        network = new vis.Network(container, data, options);
+        network.fit();
+
+        network.on("selectEdge", function (params) {
+            if (params.edges.length > 0) {
+                const edgeId = params.edges[0];
+                const idx = parseInt(edgeId.split('-')[1]);
+                selectedType = 'link';
+                selectedIndex = idx;
+                document.getElementById('btn-add-relay').disabled = false;
+                document.getElementById('btn-remove-relay').disabled = true;
+                showEditor('link', idx);
+            }
+        });
+
+        network.on("selectNode", function (params) {
+            if (params.nodes.length > 0) {
+                const nodeId = params.nodes[0];
+                selectedType = 'node';
+                selectedIndex = nodeId;
+                const isRelay = (nodeId > 0 && nodeId < segments.length);
+                document.getElementById('btn-add-relay').disabled = true;
+                document.getElementById('btn-remove-relay').disabled = !isRelay;
+                hideEditor();
+            }
+        });
+
+        network.on("deselectNode", deselectAll);
+        network.on("deselectEdge", deselectAll);
+    }
+
+    function deselectAll() {
+        selectedType = null;
+        selectedIndex = -1;
+        document.getElementById('btn-add-relay').disabled = true;
+        document.getElementById('btn-remove-relay').disabled = true;
+        hideEditor();
+    }
+
+    // --- LOGIC FUNCTIONS (UNCHANGED) ---
+
+    function splitLink() {
+        if (selectedType !== 'link' || selectedIndex === -1) return;
+        const oldSeg = segments[selectedIndex];
+        const newDist = parseFloat((oldSeg.distance / 2).toFixed(2));
+        const seg1 = { distance: newDist, capacity: oldSeg.capacity };
+        const seg2 = { distance: newDist, capacity: oldSeg.capacity };
+        segments.splice(selectedIndex, 1, seg1, seg2);
+        drawNetwork();
+        syncChainSummary();
+        deselectAll();
+    }
+
+    function removeRelay() {
+        if (selectedType !== 'node' || selectedIndex <= 0 || selectedIndex >= segments.length) return;
+        const idx = selectedIndex; 
+        const segA = segments[idx - 1];
+        const segB = segments[idx];
+        const mergedDist = parseFloat((segA.distance + segB.distance).toFixed(2));
+        const mergedCap = segA.capacity; 
+        const newSeg = { distance: mergedDist, capacity: mergedCap };
+        segments.splice(idx - 1, 2, newSeg);
+        drawNetwork();
+        syncChainSummary();
+        deselectAll();
+    }
+
+    function resetChain() {
+        segments = [{distance: 500, capacity: 1e9}];
+        drawNetwork();
+        syncChainSummary();
+        deselectAll();
+    }
+
+    // --- EDITOR UI (UNCHANGED) ---
+
+    function showEditor(type, idx) {
+        const panel = document.getElementById('editor-panel');
+        panel.style.display = 'block';
+        if (type === 'link') {
+            document.getElementById('editor-title').innerText = `Edit Link #${idx + 1} (Alice→Bob Direction)`;
+            document.getElementById('edit-distance').value = segments[idx].distance;
+            document.getElementById('edit-capacity').value = segments[idx].capacity;
+        }
+    }
+
+    function hideEditor() {
+        document.getElementById('editor-panel').style.display = 'none';
+    }
+
+    function updateSegmentData() {
+        if (selectedType === 'link' && selectedIndex !== -1) {
+            segments[selectedIndex].distance = parseFloat(document.getElementById('edit-distance').value);
+            segments[selectedIndex].capacity = parseFloat(document.getElementById('edit-capacity').value);
+            network.body.data.edges.update({
+                id: `link-${selectedIndex}`,
+                label: `${segments[selectedIndex].distance} km`
+            });
+            syncChainSummary();
+        }
+    }
+
+    function syncChainSummary() {
+        const totalDistance = segments.reduce((sum, seg) => sum + Number(seg.distance || 0), 0);
+        const relayCount = Math.max(0, segments.length - 1);
+        const totalDistanceInput = document.getElementById('total_distance_input');
+        const relayCountsInput = document.getElementById('relay_counts_input');
+        const summaryTotalDistanceInput = document.getElementById('summary_total_distance_input');
+        const summaryRelayCountInput = document.getElementById('summary_relay_count_input');
+        const summaryTotal = document.getElementById('summary_total_distance');
+        const summaryRelays = document.getElementById('summary_relay_count');
+
+        if (totalDistanceInput) totalDistanceInput.value = String(totalDistance.toFixed(2));
+        if (relayCountsInput) relayCountsInput.value = String(relayCount);
+        if (summaryTotalDistanceInput) summaryTotalDistanceInput.value = String(totalDistance.toFixed(2));
+        if (summaryRelayCountInput) summaryRelayCountInput.value = String(relayCount);
+        if (summaryTotal) summaryTotal.textContent = `${totalDistance.toFixed(2)} km`;
+        if (summaryRelays) summaryRelays.textContent = String(relayCount);
+    }
+
+    function submitSimulation() {
+        const ecCount = document.querySelectorAll('input[name="ec_protocol"]:checked').length;
+        const paCount = document.querySelectorAll('input[name="pa_protocol"]:checked').length;
+        if (ecCount === 0 || paCount === 0) {
+            alert('Please select at least one Error Correction protocol and one Privacy Amplification protocol.');
+            return;
+        }
+
+        document.getElementById('chain_data_input').value = JSON.stringify(segments);
+        syncChainSummary();
+        document.getElementById('loadingOverlay').classList.add('show'); // <-- added
+        document.getElementById('simForm').submit();
+    }
+
+    // --- INIT ---
+    document.addEventListener('DOMContentLoaded', function() {
+        drawNetwork();
+        syncChainSummary();
+
+        const ecSelected = document.querySelectorAll('input[name="ec_protocol"]:checked').length;
+        if (ecSelected === 0) {
+            const defaultEc = document.querySelector('input[name="ec_protocol"]');
+            if (defaultEc) defaultEc.checked = true;
+        }
+
+        const paSelected = document.querySelectorAll('input[name="pa_protocol"]:checked').length;
+        if (paSelected === 0) {
+            const defaultPa = document.querySelector('input[name="pa_protocol"]');
+            if (defaultPa) defaultPa.checked = true;
+        }
+    });
+
+</script>
+{% endblock %}

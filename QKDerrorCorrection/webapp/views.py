@@ -13,23 +13,215 @@ import math
 import json
 from concurrent.futures import ThreadPoolExecutor
 
-# Adjust path to include ServerClientBB84
-# Current file is .../QKDerrorCorrection/webapp/views.py
-# We want .../ServerClientBB84
+# Adjust path to include ServerClientBB84 and the workspace root for multihop utilities
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SERVER_CLIENT_PATH = os.path.join(BASE_DIR, 'ServerClientBB84')
+WORKSPACE_ROOT = BASE_DIR
 
 if SERVER_CLIENT_PATH not in sys.path:
     sys.path.append(SERVER_CLIENT_PATH)
+if WORKSPACE_ROOT not in sys.path:
+    sys.path.append(WORKSPACE_ROOT)
 
 # Removed try-except block to expose import errors directly or debug them
 # If this fails, check if bb84_server_client.py has syntax errors or missing dependencies
 from bb84_server_client import AliceServer, BobClient, QuantumChannel, Detector, Eve, APIClient
+from multihop_serverclient import build_multihop_serverclient_dashboard
 
 # Create your views here.
 
 def home(request):
     return render(request, "home.html", {})
+
+
+def _normalise_chain_data(raw_chain_data):
+    defaults = [{"distance": 500, "capacity": 1e9}]
+    if not raw_chain_data:
+        return defaults
+
+    try:
+        parsed = json.loads(raw_chain_data)
+    except (TypeError, ValueError):
+        return defaults
+
+    if not isinstance(parsed, list) or not parsed:
+        return defaults
+
+    chain = []
+    for idx, segment in enumerate(parsed):
+        if not isinstance(segment, dict):
+            continue
+        distance = float(segment.get('distance', 500 if idx == 0 else 100))
+        capacity = float(segment.get('capacity', 1e9))
+        chain.append({
+            'distance': max(distance, 0.1),
+            'capacity': max(capacity, 1.0),
+        })
+
+    return chain if chain else defaults
+
+
+def _selected_protocols(post_data, field_name, fallback_values):
+    values = [value for value in post_data.getlist(field_name) if value]
+    return values if values else list(fallback_values)
+
+
+def multihop_simulator(request):
+    default_form = {
+        'qkd_protocol': 'bb84',
+        'protocol': 'cascade',
+        'protocols': ['cascade'],
+        'ec_protocols': ['cascade'],
+        'pa_protocol': 'toeplitz',
+        'pa_protocols': ['toeplitz'],
+        'channel_mode': 'fiber',
+        'freq': 1e7,
+        'num_qubits': 10000,
+        'mu': 0.1,
+        'att_db_km': 0.2,
+        'det_eff': 0.8,
+        'dark_count': 0.01,
+        'total_distance': 500,
+        'sifting_exchanges': 3,
+        'overhead_factor': 3,
+        'packet_size': 10000,
+        'relay_counts': '0',
+        'relay_sweep_max': 40,
+        'relay_sweep_points': 20,
+        'range_relays': 0,
+    }
+    chain_data = _normalise_chain_data(request.POST.get('chain_data'))
+    submitted = False
+    effective_rate = 0.0
+    total_distance = sum(float(seg.get('distance', 0.0)) for seg in chain_data)
+    plot_optimal_hops = ''
+    plot_range_extension = ''
+    error = None
+
+    gui_total_distance = total_distance
+    gui_relay_count = max(0, len(chain_data) - 1)
+    form_data = default_form.copy()
+
+    if request.method == 'POST':
+        selected_ec_protocols = _selected_protocols(
+            request.POST,
+            'ec_protocol',
+            request.POST.getlist('protocol') or [request.POST.get('protocol', default_form['protocol'])],
+        )
+        primary_protocol = selected_ec_protocols[0] if selected_ec_protocols else default_form['protocol']
+
+        selected_pa_protocols = _selected_protocols(
+            request.POST,
+            'pa_protocol',
+            [request.POST.get('pa_protocol', default_form['pa_protocol'])],
+        )
+        primary_pa_protocol = selected_pa_protocols[0] if selected_pa_protocols else default_form['pa_protocol']
+
+        relay_sweep_max = max(1, int(request.POST.get('relay_sweep_max', default_form['relay_sweep_max'])))
+        relay_sweep_points = max(2, int(request.POST.get('relay_sweep_points', default_form['relay_sweep_points'])))
+
+        gui_total_distance = float(
+            request.POST.get('summary_total_distance', request.POST.get('total_distance', total_distance))
+        )
+        gui_relay_count = max(
+            0,
+            int(request.POST.get('summary_relay_count', request.POST.get('relay_counts', max(0, len(chain_data) - 1))))
+        )
+
+        form_data = {
+            'qkd_protocol': 'bb84',
+            'protocol': primary_protocol,
+            'protocols': selected_ec_protocols if selected_ec_protocols else default_form['protocols'],
+            'ec_protocols': selected_ec_protocols if selected_ec_protocols else default_form['ec_protocols'],
+            'pa_protocol': primary_pa_protocol,
+            'pa_protocols': selected_pa_protocols if selected_pa_protocols else default_form['pa_protocols'],
+            'channel_mode': request.POST.get('channel_mode', default_form['channel_mode']),
+            'freq': float(request.POST.get('freq', default_form['freq'])),
+            'num_qubits': int(request.POST.get('num_qubits', default_form['num_qubits'])),
+            'mu': float(request.POST.get('mu', default_form['mu'])),
+            'att_db_km': float(request.POST.get('att_db_km', default_form['att_db_km'])),
+            'det_eff': float(request.POST.get('det_eff', default_form['det_eff'])),
+            'dark_count': float(request.POST.get('dark_count', default_form['dark_count'])),
+            'total_distance': float(request.POST.get('total_distance', total_distance)),
+            'sifting_exchanges': int(request.POST.get('sifting_exchanges', default_form['sifting_exchanges'])),
+            'overhead_factor': int(request.POST.get('overhead_factor', default_form['overhead_factor'])),
+            'packet_size': int(request.POST.get('packet_size', default_form['packet_size'])),
+            'relay_counts': request.POST.get('relay_counts', default_form['relay_counts']),
+            'relay_sweep_max': relay_sweep_max,
+            'relay_sweep_points': relay_sweep_points,
+            'range_relays': gui_relay_count,
+            'summary_total_distance': gui_total_distance,
+            'summary_relay_count': gui_relay_count,
+        }
+        chain_data = _normalise_chain_data(request.POST.get('chain_data'))
+        total_distance = sum(float(seg.get('distance', 0.0)) for seg in chain_data)
+        form_data['total_distance'] = total_distance
+        gui_total_distance = float(request.POST.get('summary_total_distance', total_distance))
+        gui_relay_count = max(
+            0,
+            int(request.POST.get('summary_relay_count', max(0, len(chain_data) - 1)))
+        )
+
+        sim_config = {
+            'protocol': primary_protocol,
+            'pa_protocol': primary_pa_protocol,
+            'freq': form_data['freq'],
+            'mu': form_data['mu'],
+            'att_db_km': form_data['att_db_km'],
+            'det_eff': form_data['det_eff'],
+            'dark_count': form_data['dark_count'],
+            'num_trials': 3,
+            'protocol_params': {},
+        }
+        if primary_protocol == 'polar':
+            sim_config['protocol_params'] = {'u_fer_target': 0.01}
+        elif primary_protocol in {'cascade', 'winnow'}:
+            sim_config['protocol_params'] = {'num_passes': 4}
+        elif primary_protocol in {'ldpc_rateadaptive', 'nr_ldpc_standard'}:
+            sim_config['protocol_params'] = {'rate': 0.333}
+
+        chain_params = {
+            'sifting_exchanges': form_data['sifting_exchanges'],
+            'overhead_factor': form_data['overhead_factor'],
+            'packet_size': form_data['packet_size'],
+        }
+
+        try:
+            dashboard = build_multihop_serverclient_dashboard(
+                chain_data=chain_data,
+                selected_ec_protocols=selected_ec_protocols,
+                selected_pa_protocols=selected_pa_protocols,
+                num_qubits=form_data['num_qubits'],
+                link_capacity=max(float(seg.get('capacity', 1e9)) for seg in chain_data),
+                sim_config=sim_config,
+                chain_params=chain_params,
+                relay_sweep_max=relay_sweep_max,
+                relay_sweep_points=relay_sweep_points,
+                max_distance=max(gui_total_distance, 200.0),
+            )
+            effective_rate = float(dashboard.get('effective_rate', 0.0))
+            total_distance = float(dashboard.get('total_distance', total_distance))
+            submitted = True
+            plot_optimal_hops = dashboard.get('plot_optimal_hops', '')
+            plot_range_extension = dashboard.get('plot_range_extension', '')
+
+        except Exception as exc:
+            error = f'Simulation failed: {exc}'
+            submitted = False
+            effective_rate = 0.0
+
+    return render(request, 'multihop_simulator.html', {
+        'submitted': submitted,
+        'effective_rate': effective_rate,
+        'total_distance': total_distance,
+        'plot_optimal_hops': plot_optimal_hops,
+        'plot_range_extension': plot_range_extension,
+        'chain_data': json.dumps(chain_data),
+        'segments_count': len(chain_data),
+        'form_data': form_data,
+        'error': error,
+    })
+
 
 def binary_entropy(p):
     """Calculates binary entropy H(p)."""
