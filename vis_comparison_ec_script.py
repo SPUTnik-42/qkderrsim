@@ -100,9 +100,9 @@ async def run_multiple_simulations(protocol, num_qubits, optical_error_rate, run
 
 async def main():
     parser = argparse.ArgumentParser(description="BB84 Reconciliation Comparison Script")
-    parser.add_argument("--runs", type=int, default=1, help="Number of Monte Carlo iterations to average per data point")
+    parser.add_argument("--runs", type=int, default=10, help="Number of Monte Carlo iterations to average per data point")
     parser.add_argument("--qubits", type=int, default=100000, help="Initial sequence size for QBER sweep")
-    parser.add_argument("--outdir", type=str, default="figures/serverPlots/", help="Directory to save the resulting plots")
+    parser.add_argument("--outdir", type=str, default="figures/serverPlots_Finiteasym/", help="Directory to save the resulting plots")
     parser.add_argument("--protocols", nargs='+', default=["cascade", "nr_ldpc_std", "ldpc_rateadaptive", "winnow", "polar"], 
                         help="List of protocols to evaluate")
     args = parser.parse_args()
@@ -176,6 +176,7 @@ async def main():
     plt.title('Information Leakage Comparison')
     plt.legend(); plt.grid(True, alpha=0.3)
     plt.savefig(os.path.join(args.outdir, "1_leakage_vs_qber.png"))
+    #plt.savefig(os.path.join(args.outdir,"plots_eps/1_leakage_vs_qber.eps"), format='eps', dpi=600, bbox_inches='tight')
     plt.close()
 
     # Plot 2: Efficiency
@@ -192,6 +193,7 @@ async def main():
     plt.title('Protocol Inefficiency')
     plt.legend(); plt.grid(True, alpha=0.3)
     plt.savefig(os.path.join(args.outdir, "2_efficiency_vs_qber.png"))
+    #plt.savefig(os.path.join(args.outdir,"plots_eps/2_efficiency_vs_qber.eps"), format='eps', dpi=600, bbox_inches='tight')
     plt.close()
 
     # Plot 3: Latency
@@ -208,6 +210,7 @@ async def main():
     plt.title('Communication Latency Comparison')
     plt.legend(); plt.grid(True, which="both", alpha=0.3)
     plt.savefig(os.path.join(args.outdir, "3_latency_vs_qber.png"))
+    #plt.savefig(os.path.join(args.outdir,"plots_eps/3_latency_vs_qber.eps"), format='eps', dpi=600, bbox_inches='tight')
     plt.close()
 
     # Plot 4: Scalability
@@ -219,6 +222,7 @@ async def main():
     plt.title(f'Computational Scalability (Avg over {args.runs} runs, Err ~{FIXED_ERR})')
     plt.legend(); plt.grid(True, alpha=0.3)
     plt.savefig(os.path.join(args.outdir, "4_execution_time_vs_blocksize.png"))
+    #plt.savefig(os.path.join(args.outdir,"plots_eps/4_execution_time_vs_blocksize.eps"), format='eps', dpi=600, bbox_inches='tight')
     plt.close()
 
     # Plot 5: Key Rate
@@ -236,6 +240,7 @@ async def main():
     plt.legend(); plt.grid(True, alpha=0.3)
     plt.axhline(y=0, color='black', linestyle='--', alpha=0.5)
     plt.savefig(os.path.join(args.outdir, "5_secure_key_rate_vs_qber.png"))
+    #plt.savefig(os.path.join(args.outdir,"plots_eps/5_secure_key_rate_vs_qber.eps"), format='eps', dpi=600, bbox_inches='tight')
     plt.close()
 
     print(f"All plots saved to ./{args.outdir}")
