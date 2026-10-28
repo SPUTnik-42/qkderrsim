@@ -1,5 +1,6 @@
 import random
 from enum import Enum
+import numpy as np
 
 class Basis(Enum):
     RECTILINEAR = "+" 
@@ -8,9 +9,11 @@ class Basis(Enum):
 class PRNG:
     def __init__(self, seed=None):
         self.rng = random.Random(seed)
+        self.np_rng = np.random.default_rng(seed)
 
     def seed(self, val):
         self.rng.seed(val)
+        self.np_rng = np.random.default_rng(val)
 
     def get_bit(self) -> int: 
         return self.rng.choice([0, 1])
@@ -32,3 +35,6 @@ class PRNG:
         
     def randint(self, a, b):
         return self.rng.randint(a, b)
+
+    def poisson(self, lam: float = 1.0) -> int:
+        return int(self.np_rng.poisson(lam))

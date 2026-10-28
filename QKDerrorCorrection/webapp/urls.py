@@ -5,4 +5,5 @@ urlpatterns = [
     path("", views.home, name="home"),
     path("simulation/", views.run_simulation, name="simulation"),
     path("multihop/", views.multihop_simulator, name="multihop_simulator"),
+    path("multihop-topology/", views.multihop_topology, name="multihop_topology"),
 ]

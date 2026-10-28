@@ -1,0 +1,231 @@
+\section*{Unified Notation List}
+
+\begin{longtable}{@{}p{0.30\textwidth}p{0.65\textwidth}@{}}
+\toprule
+\textbf{Symbol} & \textbf{Meaning} \\
+\midrule
+\endfirsthead
+
+\toprule
+\textbf{Symbol} & \textbf{Meaning} \\
+\midrule
+\endhead
+
+\bottomrule
+\endfoot
+
+\endlastfoot
+
+\(d\) & Fibre transmission distance (km) \\
+\(\alpha_f\) & Fibre attenuation coefficient (dB/km) \\
+\(\eta_0\) & Base channel efficiency (coupling, connector, alignment losses) \\
+\(\eta_{\mathrm{ch}}\) & Channel transmission efficiency \\
+\(\eta_{\mathrm{det}}\) & Detector efficiency \\
+\(\eta_{\mathrm{sys}}\) & Overall system efficiency, \(\eta_{\mathrm{sys}}=\eta_{\mathrm{ch}}\eta_{\mathrm{det}}\) \\
+\(\delta_{\mathrm{dc}}\) & Detector dark-count rate \\
+\(t_d\) & Detection interval \\
+\(P_{\mathrm{dark}}\) & Probability of at least one dark count in \(t_d\) \\
+\(n_{\mathrm{ph}}\) & Photon number in a pulse \\
+\(\mu\) & Mean photon number per pulse \\
+\(P(n_{\mathrm{ph}})\) & Poisson probability of \(n_{\mathrm{ph}}\) photons \\
+\(P_{\mathrm{detect}}(n_{\mathrm{ph}})\) & Probability of detecting at least one of \(n_{\mathrm{ph}}\) photons \\
+\(Q\) & Quantum bit error rate (QBER) \\
+\(N_{\mathrm{err}}\) & Number of erroneous sifted bits \\
+\(N_{\mathrm{sift}}\) & Sifted key length \\
+\(N_{\mathrm{tx}}\) & Number of transmitted pulses/qubits \\
+\(N_{\mathrm{test}}\) & Number of disclosed test bits for parameter estimation \\
+\(N_{\mathrm{key}}\) & Key length used for reconciliation, \(N_{\mathrm{key}}=N_{\mathrm{sift}}-N_{\mathrm{test}}\) \\
+\(\mathbf{x}_A\) & Alice's sifted key \\
+\(\mathbf{x}_B\) & Bob's sifted/noisy key \\
+\(\hat{\mathbf{x}}_B\) & Bob's reconciled key estimate \\
+\(K_{\mathrm{rec}}\) & Reconciled key after error correction \\
+\(K_{\mathrm{final}}\) & Final secret key after privacy amplification \\
+\(R_{\mathrm{sk}}\) & Secret key rate \\
+\(I_{AB}\) & Classical mutual information between Alice and Bob \\
+\(\chi_{AE}\) & Holevo information between Alice and Eve \\
+\(f_{\mathrm{EC}}\) & Error-correction/reconciliation efficiency \\
+\(G_\mu\) & Overall gain for signal intensity \(\mu\) \\
+\(Q_\mu\) & QBER for signal intensity \(\mu\) \\
+\(p_{\mathrm{bg}}\) & Background/dark-count detection probability \\
+\(e_{\mathrm{mis}}\) & Optical misalignment baseline error \\
+\(G_1\) & Single-photon gain \\
+\(Y_1\) & Single-photon yield \\
+\(Q_1\) & Single-photon QBER \\
+\(L_{\mathrm{sec}}\) & Extractable secret-key length in finite-size analysis \\
+\(n_{\mathrm{key}}\) & Number of key-basis signals in finite-size analysis \\
+\(n_{\mathrm{test}}\) & Number of test-basis signals in finite-size analysis \\
+\(N_{\mathrm{sig}}\) & Total signals, \(N_{\mathrm{sig}}=n_{\mathrm{key}}+n_{\mathrm{test}}\) \\
+\(\varepsilon_{\mathrm{corr}}\) & Allowed error-correction failure probability \\
+\(\varepsilon_{\mathrm{sec}}\) & Allowed secrecy failure probability \\
+\(\nu\) & Serfling finite-sampling correction \\
+
+
+\(\mathcal{O}(S)\) & Parity oracle, \(\mathcal{O}(S)=\bigoplus_{j\in S}x_{A,j}\) \\
+\(k\) & Key length in reconciliation, \(k=|\mathbf{x}_B|\) \\
+\(N_{\mathrm{pass}}\) & Number of reconciliation passes \\
+\(\kappa\) & Block size \\
+\(\pi\) & Permutation/shuffling map \\
+\(\mathcal{I}\) & Index sequence in Cascade \\
+\(\mathcal{B}_\ell\) & \(\ell\)-th block \\
+\(N_{\mathrm{blk}}\) & Number of blocks \\
+\(\mathcal{E}\) & Set of erroneous blocks \\
+\(a_\ell,b_\ell\) & Alice's and Bob's block parities \\
+\(\mathcal{C}_{\mathrm{pc}}\) & Parity-correct block storage in Cascade \\
+\(j^*\) & Erroneous bit index in Cascade \\
+\(p\) & Pass index in reconciliation (Cascade, Winnow,LDPC) \\
+\(\pi_p\) & Permutation used in pass \(p\) in Cascade \\
+\(\mathcal{J}_{\mathrm{flip}}\) & List of indices flipped during a Cascade pass \\
+\(\mathcal{Q}_{\mathrm{bt}}\) & Backtracking queue of parity-correct blocks in Cascade \\
+\(\mathcal{S}\) & Parity-correct block under backtracking in Cascade \\
+\(\mathcal{S}^*\) & Selected block from \(\mathcal{Q}_{\mathrm{bt}}\) in Cascade backtracking \\
+\(p'\) & Auxiliary pass index used in Cascade backtracking \\
+\(p^*\) & Pass index associated with a selected block \(\mathcal{S}^*\) in Cascade backtracking \\
+
+\(\sigma\) & Integer representation of Bob's key in Winnow \\
+\(\kappa_\ell\) & Length of Winnow block \(\mathcal{B}_\ell\) \\
+\(n_{\mathrm{syn}}\) & Number of Hamming syndrome bits \\
+\(\mathcal{T}_{\ell,j}\) & Hamming syndrome subset \\
+\(s_\ell\) & Syndrome difference in Winnow \\
+\(i_{\mathrm{err}}\) & Error position in Winnow \\
+
+
+\(M_{\mathrm{seg}}\) & Number of LDPC segments \\
+\(\mathbf{y}\) & Shuffled LDPC key \\
+\(k_c\) & Length of LDPC segment \(c\) \\
+\(o_c\) & Offset of LDPC segment \(c\) \\
+\(\mathbf{y}_c\) & LDPC segment \(c\) \\
+\(n_c\) & LDPC mother codeword length \\
+\(m_c^{\max}\) & Maximum parity budget for segment \(c\) \\
+\(H_{\mathrm{fl}}\) & Finite-length Slepian--Wolf parity estimate \\
+\(m_c\) & LDPC parity budget \\
+\(\mathcal{T}_j\) & Support of LDPC check row \(j\), \(\mathcal{T}_j=\{i:H_c[j,i]=1\}\) \\
+\(v_j\) & Alice's syndrome bit for LDPC check row \(j\) \\
+\(\mathbf{v}\) & LDPC syndrome vector, \(\mathbf{v}=(v_0,\dots,v_{m_c-1})\) \\
+\(\Lambda_{\mathrm{leak}}\) & Total revealed parity/hash bits \\
+\(\boldsymbol{\lambda}\) & LDPC LLR vector \\
+\(\lambda_i\) & \(i\)-th component of the LDPC LLR vector \\
+\(L_{\mathrm{ch}}\) & Channel LLR \\
+\(\Lambda_{\mathrm{sat}}\) & LLR saturation value \\
+\(I_{\mathrm{BP}}\) & Maximum number of BP iterations \\
+\(i_{\mathrm{BP}}\) & BP iteration index \\
+\(\mathcal{N}(i)\) & Set of check nodes adjacent to variable node \(i\) in the Tanner graph \\
+\(\mathcal{N}(a)\) & Set of variable nodes adjacent to check node \(a\) in the Tanner graph \\
+\(M_{i\to a},M_{a\to i}\) & BP messages \\
+\(\hat{y}_c[i]\) & Decoded LDPC bit \\
+\(\mathrm{syn}\) & LDPC syndrome mismatch \\
+\(t_{\mathrm{hash}}\) & Universal-hash output length \\
+\(\mathcal{F}\) & Set of failed LDPC segments \\
+\(\kappa_{\mathrm{seg}}\) & Maximum LDPC segment length \\
+\(E_c\) & LDPC encoder for segment \(c\) (Sionna 5G NR) \\
+\(S_j\) & Oracle query subset for LDPC check row \(j\), \(S_j=\pi(\{o_c+i:i\in\mathcal{T}_j\})\) \\
+\(m'\) & Auxiliary parity count in a decoding pass, \(m'=m_c-|\mathbf{v}|\) \\
+\(\mathrm{ok}\) & LDPC segment verification flag in \(\{0,1\}\) \\
+\(\mathbf{s}\) & Universal-hash random vector, \(\mathbf{s}\in\{0,1\}^{k_c+t_{\mathrm{hash}}-1}\) \\
+\(s_j\) & \(j\)-th component of the universal-hash random vector \(\mathbf{s}\) \\
+\(\mathbf{r}_j\) & Row \(j\) of the universal-hash matrix, \(\mathbf{r}_j=(s_j,\dots,s_{j+k_c-1})\) \\
+\(W_j\) & Support of hash row \(\mathbf{r}_j\), \(W_j=\{i:\mathbf{r}_j[i]=1\}\) \\
+\(V_j\) & Oracle query subset for hash row \(j\), \(V_j=\pi(\{o_c+i:i\in W_j\})\) \\
+\(h^{\mathrm{A}}_j\) & Alice's hash symbol for row \(j\), \(h^{\mathrm{A}}_j=\mathcal{O}(V_j)\) \\
+\(h^{\mathrm{B}}_j\) & Bob's hash symbol for row \(j\), \(h^{\mathrm{B}}_j=\bigoplus_{i\in W_j}\hat{y}_c[i]\) \\
+\(\mathbf{h}^{\mathrm{A}}\) & Alice's universal-hash symbol vector, \(\mathbf{h}^{\mathrm{A}}=(h^{\mathrm{A}}_0,\dots,h^{\mathrm{A}}_{t_{\mathrm{hash}}-1})\) \\
+\(\mathbf{h}^{\mathrm{B}}\) & Bob's universal-hash symbol vector, \(\mathbf{h}^{\mathrm{B}}=(h^{\mathrm{B}}_0,\dots,h^{\mathrm{B}}_{t_{\mathrm{hash}}-1})\) \\
+\(H_2(Q)\) & Binary entropy function, \(H_2(Q)=-Q\log_2 Q-(1-Q)\log_2(1-Q)\) \\
+\(V_Q\) & Channel dispersion, \(V_Q=Q(1-Q)\log_2^2((1-Q)/Q)\) \\
+\(P_{\mathrm{dec}}\) & Maximum number of decoding passes per LDPC segment \\
+\(\gamma\) & Parity-budget sweep factor \\
+\(s_0\) & Pseudo-random generator seed for LDPC permutation and hashing \\
+\(\mathbf{H}_c\) & Degree-balanced 5G NR LDPC parity-check matrix for segment \(c\) \\
+\(\mathbf{H}_{\mathrm{raw}}, \mathbf{H}_{\mathrm{fold}}\) & Raw lifted 3GPP parity-check matrix from \(E_c\) and its modulo-\(k_c\) folded submatrix \\
+\(B_{\mathrm{fold}}\) & Modulo-\(k_c\) column-folding factor for 3GPP base-graph extraction \\
+\(w_{\min}, w_{\max}\) & Check-row weight bounds for candidate row filtering \\
+\(d_{\mathrm{tgt}}(r)\) & Target check-row degree at row index \(r\) \\
+\(\mathbf{d}_{\mathrm{col}}\) & Cumulative column-degree vector during matrix construction \\
+\(\mathcal{R}_{\mathrm{pool}}\) & Candidate check-row pool extracted from \(\mathbf{H}_{\mathrm{fold}}\) \\
+\(\eta_{\mathrm{cov}}\) & Degree-deviation penalty in greedy column-coverage balancing \\
+\(\mathbf{H}_{\mathrm{act}}\) & Active parity-check submatrix of size \(m_c \times k_c\) \\
+\(\eta_{\mathrm{SW}}, \beta_{\mathrm{disp}}\) & Slepian--Wolf entropy scaling factor and dispersion scaling factor \\
+\(\gamma_{\mathrm{fine}}\) & Fine parity-budget sweep factor \\
+\(\tau_{\mathrm{syn}}\) & Syndrome mismatch threshold for fine rate-adaptive sweeping \\
+\(\alpha_{\mathrm{BP}}, \beta_{\mathrm{BP}}\) & Normalized min-sum check-node scaling factor and message damping factor \\
+\(\omega_{\mathrm{EMA}}\) & Exponential moving average weight for posterior LLR smoothing \\
+\(\boldsymbol{\lambda}^{\mathrm{post}}, \bar{\boldsymbol{\lambda}}\) & Posterior LLR vector and smoothed posterior LLR vector \\
+\(\boldsymbol{\rho}_c, \boldsymbol{\rho}_c^*\) & Variable-node reliability magnitude vector and best-so-far reliability vector \\
+\(\hat{\mathbf{y}}_c^*, \mathrm{syn}^*\) & Best-so-far decoded LDPC segment and minimum syndrome mismatch count \\
+\(\mathbf{s}_{\mathrm{res}}\) & Residual syndrome vector, \(\mathbf{s}_{\mathrm{res}}=(\mathbf{H}_{\mathrm{act}}\hat{\mathbf{y}}_c\bmod 2)\oplus\mathbf{v}\) \\
+\(\mathcal{V}_{\mathrm{chk}}\) & Set of violated check nodes where \(s_{\mathrm{res},a}=1\) \\
+\(\delta_i\) & Violated-check degree of variable node \(i\) \\
+\(\psi_i\) & Reliability-ordering score for variable node \(i\) \\
+\(\eta_{\mathrm{OSD}}\) & Violated-check penalty weight in OSD-0 column ordering \\
+\(\pi_{\mathrm{OSD}}\) & Reliability-ordered column permutation in OSD-0 \\
+\(\mathbf{e}_{\mathrm{OSD}}\) & GF(2) OSD-0 error-correction pattern \\
+\(P_{\mathrm{pin}}, p_{\mathrm{pin}}\) & Maximum number of blind variable-node pinning rounds and round index \\
+\(\rho_{\mathrm{pin}}, n_{\mathrm{pin}}\) & Fraction and number of variable nodes revealed per pinning round \\
+\(\eta_{\mathrm{pin}}\) & Violated-check penalty weight in variable-node pinning selection \\
+\(\mathcal{P}_{\mathrm{pin}}, \mathcal{U}_{\mathrm{pin}}, \mathcal{I}_{\mathrm{pin}}\) & Pinned variable-node set, unpinned set, and selected pinning indices \\
+\(\mathbf{U}_{\mathrm{pin}}, \mathbf{v}_{\mathrm{pin}}\) & Unit-row pinning submatrix and revealed Alice bit vector \\
+\(m_{\mathrm{raw}}, n_{\mathrm{raw}}\) & Dimensions of the raw lifted 3GPP parity-check matrix \(\mathbf{H}_{\mathrm{raw}}\) \\
+\(\mathbf{h}, \mathbf{h}^*\) & Candidate check row in \(\mathcal{R}_{\mathrm{pool}}\) and greedily selected check row \\
+\(\mathcal{C}_{\mathrm{sel}}\) & Selected column-index set during progressive edge-growth row synthesis \\
+\(\tilde{M}_{a\to i}\) & Undamped normalized min-sum check-to-variable message \\
+\(\tilde{\mathbf{y}}_c, \mathrm{syn}_{\mathrm{new}}\) & OSD-0 candidate decoded segment and its updated syndrome mismatch \\
+\(\mathbf{y}_c^{\mathrm{pin}}, \mathbf{e}_{i_\ell}\) & Pinning-updated noisy segment and standard basis unit vector at index \(i_\ell\) \\
+
+
+
+
+
+
+\(n_p\) & Polar transform order \\
+\(N_p\) & Polar block length, \(N_p=2^{n_p}\ge k\) \\
+\(\mathbf{\Gamma}\) & Polar reliability matrix \\
+\(\mathbf{D}\) & Polar decision matrix \\
+\(\rho\) & Initial polar reliability, \(\rho=1-2Q\) \\
+\(\mathbf{G}_{N_p}\) & Polar generator matrix \\
+\(\Delta_{\mathrm{FER}}\) & Polar frame-error budget \\
+\(\theta_c\) & Polar confidence threshold \\
+\(\xi\) & Adaptive polar confidence threshold \\
+\(p_0\) & Polar leaf probability estimate \\
+\(\hat{\mathbf{u}}_B\) & Polar estimated information bit vector (input to re-encoding) \\
+\(\hat{\mathbf{c}}_B\) & Polar re-encoded full codeword before truncation to length \(k\) \\
+\(s_{\mathrm{pa}}\) & Privacy-amplification public seed \\
+\(h_{\mathrm{dep}}\) & Half-size used in the polar dependency-set construction, \(h_{\mathrm{dep}}=2^s\) for stage \(s=0,\dots,n_p-1\) \\
+\(h_{\mathrm{tr}}\) & Half-size used in the polar \(f/g\) transforms, \(h_{\mathrm{tr}}=2^{s-1}\) for tree level \(s\) \\
+\(\mathcal{J}_{m_{\mathrm{pol}}}\) & Polar dependency index set for offset \(m_{\mathrm{pol}}\) \\
+\(\mathcal{Q}_{m_{\mathrm{pol}}}\) & Oracle query subset at node offset \(m_{\mathrm{pol}}\), \(\mathcal{Q}_{m_{\mathrm{pol}}}=\{i\in\mathcal{J}_{m_{\mathrm{pol}}}:i<k\}\) \\
+\(s\) & Polar decoding-tree level index \\
+\(\Gamma_{s,i}\) & Reliability value at polar tree level \(s\) and index \(i\) \\
+\(D_{s,i}\) & Decoded bit at polar tree level \(s\) and index \(i\) \\
+\(\mathbf{F}\) & Polar kernel matrix \\
+\(m_{\mathrm{pol}}\) & Polar decoding-tree offset index (renamed from \(m\) to avoid conflict with \(m_c\)) \\
+\(r_u^{\mathrm{pol}}, r_v^{\mathrm{pol}}, b^{\mathrm{pol}}\) & Local variables in the polar G-transform (renamed to avoid conflicts) \\
+
+
+
+\(B_{\mathrm{out}}\) & SHAKE256 output bytes \\
+\(S_{\mathrm{sec}}\) & Security parameter (extra bits subtracted in privacy amplification) \\
+\(p_1\) & Single-photon probability used in the Eve-knowledge bound \\
+\(t_{\mathrm{Eve}}\) & Eve's knowledge bound (in bits) \\
+\(\mathcal{G}_{\mathrm{prng}}\) & Pseudo-random generator object for Toeplitz hashing \\
+\(\mathbf{w}\) & Toeplitz random sequence from \(\mathcal{G}_{\mathrm{prng}}\), length \(k+L_{\mathrm{sec}}-1\) \\
+\(\mathbf{w}_i\) & \(i\)-th Toeplitz row (reversed window of length \(k\)) \\
+\(K_{\mathrm{final},i}\) & \(i\)-th bit of the final secret key \\
+\(\mathcal{H}_{\mathrm{shake}}\) & SHAKE256 sponge state \\
+\(\mathbf{d}_{\mathrm{bytes}}\) & SHAKE256 output bytes \\
+\(\mathbf{d}_{\mathrm{bits}}\) & SHAKE256 output bits \\
+\(b_{\mathrm{byte}}\) & Byte-loop index in SHAKE256 bit-extraction \\
+
+
+
+
+\(q\) & Basis reconciliation / sifting factor \\
+\(\mathrm{leak}_{\mathrm{EC}}\) & Classical error-correction leakage in finite-size SKR equation \\
+\(R_{\mathrm{finite}}\) & Finite-size secret-key rate per pulse \\
+\(H_{\mathrm{PA}}\) & Hash function used in privacy amplification (to avoid conflict with \(H_2\)) \\
+\(\mathbf{w}\) & Toeplitz random sequence from \(\mathcal{G}_{\mathrm{prng}}\), length \(k+L_{\mathrm{sec}}-1\) \\
+\(\mathbf{w}_i\) & \(i\)-th Toeplitz row (reversed window of length \(k\)) \\
+
+
+\end{longtable}
+
+
+

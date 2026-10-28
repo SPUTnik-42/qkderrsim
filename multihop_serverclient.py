@@ -164,18 +164,15 @@ class MultiHopChain:
         self.c = 3e5
         self.L_packet = packet_size
 
-    def calculate_chain_rate(self, link_rates, link_distances, link_capacities):
+    def calculate_chain_rate(self, link_rates, link_distances):
         if not link_rates or any(k <= 1e-9 for k in link_rates):
             return 0.0
         bottleneck_rate = min(link_rates)
         t_generation_bottleneck = (2 * self.L_packet) / bottleneck_rate
         latency_total = 0
-        for i in range(len(link_rates)):
-            D = link_distances[i]
-            C = link_capacities[i]
+        for D in link_distances:
             t_prop = (self.S * D) / self.c
-            t_trans = (self.n * self.L_packet) / C
-            latency_total += t_prop + t_trans
+            latency_total += t_prop
         total_tau = t_generation_bottleneck + latency_total
         return self.L_packet / total_tau
 
@@ -184,7 +181,6 @@ def simulate_optimal_hops(
     total_distance=500.0,
     relay_counts=None,
     num_qubits=5000,
-    link_capacity=1e9,
     sim_config=None,
     chain_params=None
 ):
@@ -231,9 +227,7 @@ def simulate_optimal_hops(
 
         rates = [rate_bps] * num_links
         dists = [dist_per_link] * num_links
-        caps = [link_capacity] * num_links
-
-        eff_rate = chain_logic.calculate_chain_rate(rates, dists, caps)
+        eff_rate = chain_logic.calculate_chain_rate(rates, dists)
         final_rates.append(eff_rate)
 
     return relay_counts, final_rates
@@ -244,7 +238,6 @@ def simulate_range_extension(
     num_points=20,
     comparison_relays=3,
     num_qubits=5000,
-    link_capacity=1e9,
     sim_config=None,
     chain_params=None
 ):
@@ -284,12 +277,12 @@ def simulate_range_extension(
 
     for D in scan_distances:
         rate_direct, _ = wrapper.calculate_rate(D)
-        r_direct = chain_logic.calculate_chain_rate([rate_direct], [D], [link_capacity])
+        r_direct = chain_logic.calculate_chain_rate([rate_direct], [D])
         rates_direct.append(r_direct)
 
         d_seg = D / num_links_relayed
         rate_seg, _ = wrapper.calculate_rate(d_seg)
-        r_chain = chain_logic.calculate_chain_rate([rate_seg] * num_links_relayed, [d_seg] * num_links_relayed, [link_capacity] * num_links_relayed)
+        r_chain = chain_logic.calculate_chain_rate([rate_seg] * num_links_relayed, [d_seg] * num_links_relayed)
         rates_relayed.append(r_chain)
 
     return scan_distances, rates_direct, rates_relayed
@@ -301,7 +294,6 @@ def simulate_range_extension_protocols(
     num_points=20,
     comparison_relays=3,
     num_qubits=5000,
-    link_capacity=1e9,
     sim_config=None,
     chain_params=None
 ):
@@ -376,7 +368,7 @@ def simulate_range_extension_protocols(
             # relayed
             d_seg = D / num_links_relayed
             rate_seg, _ = wrapper.calculate_rate(d_seg)
-            r_chain = chain.calculate_chain_rate([rate_seg] * num_links_relayed, [d_seg] * num_links_relayed, [link_capacity] * num_links_relayed)
+            r_chain = chain.calculate_chain_rate([rate_seg] * num_links_relayed, [d_seg] * num_links_relayed)
             relayed_rates.append(r_chain)
 
         # Store the same finite direct_rates for each protocol to keep return shape consistent
@@ -474,7 +466,6 @@ def simulate_range_extension_protocol_pairs(
     max_distance=500,
     num_points=20,
     num_qubits=5000,
-    link_capacity=1e9,
     sim_config=None,
     chain_params=None,
 ):
@@ -491,7 +482,7 @@ def simulate_range_extension_protocol_pairs(
     scan_distances = np.linspace(10, max_distance, num_points)
     results = {}
 
-    usable_chain = chain_data or [{'distance': max_distance, 'capacity': link_capacity}]
+    usable_chain = chain_data or [{'distance': max_distance}]
     total_chain_distance = sum(float(seg.get('distance', 0.0)) for seg in usable_chain)
     if total_chain_distance <= 0:
         total_chain_distance = max_distance if max_distance > 0 else 1.0
@@ -534,7 +525,6 @@ def simulate_range_extension_protocol_pairs(
                     chain.calculate_chain_rate(
                         per_link_rates,
                         per_link_distances,
-                        [link_capacity] * len(per_link_distances),
                     )
                 )
 
@@ -548,7 +538,6 @@ def build_multihop_serverclient_dashboard(
     selected_ec_protocols=None,
     selected_pa_protocols=None,
     num_qubits=5000,
-    link_capacity=1e9,
     sim_config=None,
     chain_params=None,
     relay_sweep_max=40,
@@ -561,7 +550,7 @@ def build_multihop_serverclient_dashboard(
     if chain_params is None:
         chain_params = {}
 
-    usable_chain = chain_data or [{'distance': 50.0, 'capacity': link_capacity}]
+    usable_chain = chain_data or [{'distance': 50.0}]
     total_distance = sum(float(seg.get('distance', 0.0)) for seg in usable_chain)
     if max_distance is None:
         max_distance = max(total_distance, 200.0)
@@ -585,7 +574,6 @@ def build_multihop_serverclient_dashboard(
         total_distance=total_distance,
         relay_counts=relay_counts,
         num_qubits=num_qubits,
-        link_capacity=link_capacity,
         sim_config=hop_config,
         chain_params=chain_params,
     )
@@ -604,7 +592,6 @@ def build_multihop_serverclient_dashboard(
         max_distance=max_distance,
         num_points=num_points,
         num_qubits=num_qubits,
-        link_capacity=link_capacity,
         sim_config=sim_config,
         chain_params=chain_params,
     )
@@ -675,13 +662,13 @@ def run_multihop_serverclient_example():
     print('--- Server-Client Multihop Simulation Example ---')
 
     # Optimal hops
-    relays, rates = simulate_optimal_hops(total_distance=500.0, relay_counts=np.linspace(1, 30, 20, dtype=int).tolist(), num_qubits=10000, link_capacity=1e9, sim_config=SIM_CONFIG, chain_params=CHAIN_CONFIG)
+    relays, rates = simulate_optimal_hops(total_distance=500.0, relay_counts=np.linspace(1, 30, 20, dtype=int).tolist(), num_qubits=10000, sim_config=SIM_CONFIG, chain_params=CHAIN_CONFIG)
     plot_optimal_hops(relays, rates, 500.0, SIM_CONFIG)
 
     # Range extension
     # Range extension: compare multiple EC protocols side-by-side
     protocols = ['polar', 'cascade', 'nr_ldpc_standard', 'ldpc_rateadaptive', 'winnow']
-    dists, results = simulate_range_extension_protocols(protocols=protocols, max_distance=700, num_points=20, comparison_relays=3, num_qubits=10000, link_capacity=1e9, sim_config=SIM_CONFIG, chain_params=CHAIN_CONFIG)
+    dists, results = simulate_range_extension_protocols(protocols=protocols, max_distance=700, num_points=20, comparison_relays=3, num_qubits=10000, sim_config=SIM_CONFIG, chain_params=CHAIN_CONFIG)
     plot_range_extension_protocols(dists, results, 3, SIM_CONFIG)
 
 

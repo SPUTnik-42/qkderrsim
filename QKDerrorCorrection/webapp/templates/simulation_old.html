@@ -189,8 +189,8 @@
                         <input type="number" name="cascade_passes" value="{{ params.cascade_passes|default:4 }}">
                     </div>
                     <div class="form-group">
-                        <label>LDPC Rate (0.0-1.0 or 'adaptive')</label>
-                        <input type="text" name="ldpc_rate" value="{{ params.ldpc_rate|default:'adaptive' }}">
+                        <label>LDPC Rate (0.0-1.0)</label>
+                        <input type="number" step="0.001" name="ldpc_rate" value="{{ params.ldpc_rate|default:0.333 }}">
                     </div>
                 </div>
                 

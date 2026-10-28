@@ -341,7 +341,7 @@
     <div class="intro-box">
         <h2>Chain Builder and Protocol Sweep</h2>
         <p>
-            Configure the relay chain, adjust per-link distance and capacity, and compare the effective key rate across
+                            Configure the relay chain, adjust per-link distance, and compare the effective key rate across
             different error-correction and privacy-amplification combinations in a single simulation workflow.
         </p>
     </div>
@@ -377,8 +377,7 @@
                                 <label><input type="checkbox" name="ec_protocol" value="cascade" {% if 'cascade' in form_data.ec_protocols or form_data.protocol == 'cascade' %}checked{% endif %}> Cascade</label>
                                 <label><input type="checkbox" name="ec_protocol" value="winnow" {% if 'winnow' in form_data.ec_protocols or form_data.protocol == 'winnow' %}checked{% endif %}> Winnow</label>
                                 <label><input type="checkbox" name="ec_protocol" value="polar" {% if 'polar' in form_data.ec_protocols or form_data.protocol == 'polar' %}checked{% endif %}> Polar</label>
-                                <label><input type="checkbox" name="ec_protocol" value="ldpc_rateadaptive" {% if 'ldpc_rateadaptive' in form_data.ec_protocols or form_data.protocol == 'ldpc_rateadaptive' %}checked{% endif %}> LDPC Rate-Adaptive</label>
-                                <label><input type="checkbox" name="ec_protocol" value="nr_ldpc_standard" {% if 'nr_ldpc_standard' in form_data.ec_protocols or form_data.protocol == 'nr_ldpc_standard' %}checked{% endif %}> NR-LDPC Standard</label>
+                                <label><input type="checkbox" name="ec_protocol" value="nr_ldpc_standard" {% if 'nr_ldpc_standard' in form_data.ec_protocols or form_data.protocol == 'nr_ldpc_standard' %}checked{% endif %}> LDPC</label>
                             </div>
                         </div>
 
@@ -494,11 +493,6 @@
                                     <label class="form-label small fw-bold">Distance (km)</label>
                                     <input type="number" class="form-control" id="edit-distance" step="0.1" min="0.1" onchange="updateSegmentData()">
                                 </div>
-                                <div class="col-md-6">
-                                    <label class="form-label small fw-bold">Classical Capacity (bps)</label>
-                                    <input type="number" class="form-control" id="edit-capacity" step="1e6" onchange="updateSegmentData()">
-                                    <div class="form-text small">1e9 = 1 Gbps</div>
-                                </div>
                             </div>
                         </div>
                     </div>
@@ -559,7 +553,7 @@
     try {
         segments = JSON.parse(serverData);
     } catch(e) {
-        segments = [{distance: 500, capacity: 1e9}];
+        segments = [{distance: 500}];
     }
 
     // --- VIS.JS ZIGZAG VISUALIZATION (UNCHANGED) ---
@@ -681,8 +675,8 @@
         if (selectedType !== 'link' || selectedIndex === -1) return;
         const oldSeg = segments[selectedIndex];
         const newDist = parseFloat((oldSeg.distance / 2).toFixed(2));
-        const seg1 = { distance: newDist, capacity: oldSeg.capacity };
-        const seg2 = { distance: newDist, capacity: oldSeg.capacity };
+        const seg1 = { distance: newDist };
+        const seg2 = { distance: newDist };
         segments.splice(selectedIndex, 1, seg1, seg2);
         drawNetwork();
         syncChainSummary();
@@ -695,8 +689,7 @@
         const segA = segments[idx - 1];
         const segB = segments[idx];
         const mergedDist = parseFloat((segA.distance + segB.distance).toFixed(2));
-        const mergedCap = segA.capacity; 
-        const newSeg = { distance: mergedDist, capacity: mergedCap };
+        const newSeg = { distance: mergedDist };
         segments.splice(idx - 1, 2, newSeg);
         drawNetwork();
         syncChainSummary();
@@ -704,7 +697,7 @@
     }
 
     function resetChain() {
-        segments = [{distance: 500, capacity: 1e9}];
+        segments = [{distance: 500}];
         drawNetwork();
         syncChainSummary();
         deselectAll();
@@ -718,7 +711,6 @@
         if (type === 'link') {
             document.getElementById('editor-title').innerText = `Edit Link #${idx + 1} (Alice→Bob Direction)`;
             document.getElementById('edit-distance').value = segments[idx].distance;
-            document.getElementById('edit-capacity').value = segments[idx].capacity;
         }
     }
 
@@ -729,7 +721,6 @@
     function updateSegmentData() {
         if (selectedType === 'link' && selectedIndex !== -1) {
             segments[selectedIndex].distance = parseFloat(document.getElementById('edit-distance').value);
-            segments[selectedIndex].capacity = parseFloat(document.getElementById('edit-capacity').value);
             network.body.data.edges.update({
                 id: `link-${selectedIndex}`,
                 label: `${segments[selectedIndex].distance} km`

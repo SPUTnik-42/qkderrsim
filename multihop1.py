@@ -76,7 +76,7 @@ class MultiHopChain:
         self.c = 3e5                  # Speed of light in km/s
         self.L_packet = packet_size   # Consistent block size
 
-    def calculate_chain_rate(self, link_rates, link_distances, link_capacities):
+    def calculate_chain_rate(self, link_rates, link_distances):
         """
         Calculates effective rate for a chain using Parallel QKD + Sequential Forwarding logic.
         """
@@ -94,17 +94,12 @@ class MultiHopChain:
         # 2. Latency (Accumulative)
         latency_total = 0
         
-        for i in range(len(link_rates)):
-            D = link_distances[i]
-            C = link_capacities[i]
+        for D in link_distances:
             
             # Propagation delay
             t_prop = (self.S * D) / self.c
             
-            # Transmission delay
-            t_trans = (self.n * self.L_packet) / C
-            
-            latency_total += t_prop + t_trans
+            latency_total += t_prop
 
         # Total Time per Packet Cycle
         total_tau = t_generation_bottleneck + latency_total
@@ -120,7 +115,6 @@ def simulate_optimal_hops(
     total_distance=300.0,
     relay_counts=None,
     block_size_N=1e8,         # Relevant for BB84
-    link_capacity=1e9,
     simulation_config=None,   # Contains protocol_type, channel_mode, etc.
     chain_params=None
 ):
@@ -166,9 +160,7 @@ def simulate_optimal_hops(
         # Build lists for the chain function
         rates = [segment_rate] * num_links
         dists = [dist_per_link] * num_links
-        caps  = [link_capacity] * num_links 
-        
-        eff_rate = chain_logic.calculate_chain_rate(rates, dists, caps)
+        eff_rate = chain_logic.calculate_chain_rate(rates, dists)
         final_rates.append(eff_rate)
         
     return relay_counts, final_rates
@@ -178,7 +170,6 @@ def simulate_range_extension(
     num_points=50,
     comparison_relays=3,
     block_size_N=1e8,
-    link_capacity=1e9,
     simulation_config=None,
     chain_params=None
 ):
@@ -213,9 +204,7 @@ def simulate_range_extension(
         wrapper.set_distance(D)
         k_direct = wrapper.calculate_rate(block_size_N=block_size_N)
         
-        r_direct = chain_logic.calculate_chain_rate(
-            [k_direct], [D], [link_capacity]
-        )
+        r_direct = chain_logic.calculate_chain_rate([k_direct], [D])
         rates_direct.append(r_direct)
         
         # --- Scenario B: Chain ---
@@ -224,9 +213,8 @@ def simulate_range_extension(
         k_seg = wrapper.calculate_rate(block_size_N=block_size_N)
         
         r_chain = chain_logic.calculate_chain_rate(
-            [k_seg] * num_links_relayed, 
-            [d_seg] * num_links_relayed, 
-            [link_capacity] * num_links_relayed
+            [k_seg] * num_links_relayed,
+            [d_seg] * num_links_relayed
         )
         rates_relayed.append(r_chain)
         
@@ -302,7 +290,6 @@ def run_multihop_analysis():
     }
     
     BLOCK_SIZE_BB84 = 1e8     # Only used if protocol is BB84
-    CLASSICAL_CAPACITY = 1e9  # 1 Gbps
 
     print(f"--- Starting Simulation: {SELECTED_PROTOCOL.upper()} over {SELECTED_CHANNEL.upper()} ---")
 
@@ -315,7 +302,6 @@ def run_multihop_analysis():
     relays, eff_rates = simulate_optimal_hops(
         total_distance=target_distance,
         block_size_N=BLOCK_SIZE_BB84,
-        link_capacity=CLASSICAL_CAPACITY,
         simulation_config=PHYSICS_CONFIG,
         chain_params=CHAIN_CONFIG
     )
@@ -333,7 +319,6 @@ def run_multihop_analysis():
         max_distance=max_scan_dist,
         comparison_relays=relay_comparison_count,
         block_size_N=BLOCK_SIZE_BB84,
-        link_capacity=CLASSICAL_CAPACITY,
         simulation_config=PHYSICS_CONFIG,
         chain_params=CHAIN_CONFIG
     )

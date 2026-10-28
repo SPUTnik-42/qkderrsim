@@ -1,4 +1,3 @@
-
 import asyncio
 import logging
 import datetime
@@ -19,7 +18,6 @@ from cascade_refactored import CascadeClientProtocol, ParityOracle
 # from qc_ldpc_v3 import QCLDPCv3ClientProtocol
 # from nr_ldpc_bb84 import NR_LDPC_ClientProtocol
 from nr_ldpc_standard import NR_LDPC_Standard_ClientProtocol
-from ldpc_rateadaptive import LDPC_RateAdaptive_ClientProtocol
 from winnow_refactored import WinnowClientProtocol
 from polar_codes import PolarClientProtocol
 from privacy_amplification import PrivacyAmplification
@@ -190,7 +188,7 @@ class AliceServer(Actor):
         for i in range(self.num_qubits):
             bit = self.prng.get_bit()
             basis = self.prng.get_basis()
-            count = np.random.poisson(self.mu)
+            count = self.prng.poisson(self.mu)
             t_now = datetime.datetime.now().strftime("%H:%M:%S.%f")
             p = Photon(id=i, bit=bit, basis=basis, creation_time=t_now, count=count)
             
@@ -221,6 +219,8 @@ class AliceServer(Actor):
             return self._api_parity(data)
         elif endpoint == "/block-parity":
             return self._api_block_parity(data)
+        elif endpoint == "/discard-indices":
+            return self._api_discard_indices(data)
         elif endpoint == "/privacy-amplification":
             return self._api_pa(data)
         else:
@@ -331,6 +331,14 @@ class AliceServer(Actor):
         results = [self._par_calc(b) for b in blocks]
         return {"parities": results}
 
+    def _api_discard_indices(self, data):
+        drop_set = set(data.get("indices", []))
+        if drop_set:
+            self.sifted_bits = [
+                b for i, b in enumerate(self.sifted_bits) if i not in drop_set
+            ]
+        return {"remaining_length": len(self.sifted_bits)}
+
     def _api_pa(self, data):
         seed = data["seed"]
         qber = data["qber"]
@@ -364,6 +372,10 @@ class APIClient(ParityOracle):
     async def get_parities(self, blocks: List[List[int]]) -> List[int]:
         resp = await self.post("/block-parity", {"blocks": blocks})
         return resp["parities"]
+
+    async def discard_indices(self, indices: List[int]):
+        resp = await self.post("/discard-indices", {"indices": indices})
+        return resp
         
     async def apply_privacy_amplification(self, seed: int, qber: float, pa_protocol: str = "toeplitz", q1: float = 1.0, ec_leakage: int = 0):
         resp = await self.post("/privacy-amplification", {
@@ -491,18 +503,36 @@ class BobClient(Actor):
             passes = int(self.protocol_params.get('num_passes', 4))
             protocol = CascadeClientProtocol(num_passes=passes, verbose=self.verbose)
             corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
-        elif self.protocol == "ldpc_5g_std" or self.protocol == "nr_ldpc_std" or self.protocol == "nr_ldpc_standard":
+        # Inside BobClient.run_classical_post_processing (around line 394):
+        elif self.protocol in {"ldpc_5g_std", "nr_ldpc_std", "nr_ldpc_standard"}:
             proto_seed = self.prng.randint(0, 2**32 - 1)
-            target_rate = self.protocol_params.get('rate', 0.33)
-            print(f"[BOB] Selected Protocol: 5G NR LDPC (Sionna) Standard Fixed Rate (R={target_rate})")
-            protocol = NR_LDPC_Standard_ClientProtocol(verbose=self.verbose, seed=proto_seed, rate=target_rate)
+            
+            ldpc_params = {
+                key: self.protocol_params[key]
+                for key in (
+                    'rate', 'num_iter', 'max_k', 'target_fer',
+                    'sweep_factor', 'max_sweep_iter', 'hash_bits',
+                )
+                if key in self.protocol_params
+            }
+
+            target_rate = self.protocol_params.get('rate', None)
+            print(f"[BOB] Selected Protocol: 5G NR LDPC (Sionna) Rate-Adaptive (R={target_rate})")
+            protocol = NR_LDPC_Standard_ClientProtocol(verbose=self.verbose, seed=proto_seed,**ldpc_params,) #rate=target_rate)
             corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
-        elif self.protocol == "ldpc_rateadaptive":
-            proto_seed = self.prng.randint(0, 2**32 - 1)
-            r_max = self.protocol_params.get('r_max', 0.333)
-            print(f"[BOB] Selected Protocol: Rate-Adaptive LDPC (R_max={r_max})")
-            protocol = LDPC_RateAdaptive_ClientProtocol(verbose=self.verbose, seed=proto_seed, r_max=r_max)
-            corrected_key, revealed, errors_cor, uses = await protocol.run(clean_key_bob, est_qber, self.api)
+            # If any failed chunks were left unresolved, synchronize removal with Alice
+            stats = getattr(protocol, "stats", {})
+            failed_chunks = stats.get("failed_chunk_indices", [])
+            if failed_chunks and getattr(protocol, "_perm", None) is not None:
+                bounds = stats.get("chunk_boundaries", [])
+                perm = protocol._perm
+                drop_orig = []
+                for c_idx in failed_chunks:
+                    lo, hi = bounds[c_idx], bounds[c_idx + 1]
+                    drop_orig.extend(perm[lo:hi].tolist())
+                drop_set = set(drop_orig)
+                corrected_key = [b for i, b in enumerate(corrected_key) if i not in drop_set]
+                await self.api.discard_indices(drop_orig)
         elif self.protocol == "winnow":
             num_passes = int(self.protocol_params.get('num_passes', 4))
             print(f"[BOB] Selected Protocol: Winnow ({num_passes} passes)")

@@ -11,6 +11,8 @@ class ParityOracle(Protocol):
     async def get_parities(self, blocks: List[List[int]]) -> List[int]:
         ...
 
+    async def get_bits(self, indices: List[int]) -> List[int]: ...    # <-- add this
+
 class CascadeClientProtocol:
     def __init__(self, num_passes=4, verbose=True):
         self.num_passes = num_passes

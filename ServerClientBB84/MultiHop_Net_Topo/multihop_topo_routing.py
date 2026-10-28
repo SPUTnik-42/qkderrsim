@@ -90,24 +90,23 @@ class QTopology:
     """
     Handles a custom topology of trusted nodes.
     """
-    def __init__(self, nodes: List[str], edges: List[Tuple[str, str, float, float]]):
+    def __init__(self, nodes: List[str], edges: List[Tuple[str, str, float]]):
         self.graph = nx.Graph()
         self.graph.add_nodes_from(nodes)
-        for u, v, dist, cap in edges:
-            self.graph.add_edge(u, v, distance=dist, capacity=cap)
+        for u, v, dist in edges:
+            self.graph.add_edge(u, v, distance=dist)
 
     def get_path_metrics(self, path: List[str], wrapper: ProtocolWrapperServerClient, chain_logic: MultiHopChain):
-        link_rates, link_distances, link_capacities = [], [], []
+        link_rates, link_distances = [], []
         for i in range(len(path) - 1):
             u, v = path[i], path[i+1]
             edge_data = self.graph[u][v]
-            dist, cap = edge_data['distance'], edge_data['capacity']
+            dist = edge_data['distance']
             rate_bps, _ = wrapper.calculate_rate(dist)
             link_rates.append(rate_bps)
             link_distances.append(dist)
-            link_capacities.append(cap)
 
-        eff_rate = chain_logic.calculate_chain_rate(link_rates, link_distances, link_capacities)
+        eff_rate = chain_logic.calculate_chain_rate(link_rates, link_distances)
         return eff_rate, link_rates
 
     def route(self, source: str, target: str, wrapper: ProtocolWrapperServerClient, strategy: RoutingStrategy) -> Tuple[List[str], float]:
@@ -169,7 +168,6 @@ def run_topology_deep_analysis(
         total_distance=path_dist,
         relay_counts=relay_counts,
         num_qubits=wrapper.num_qubits,
-        link_capacity=1e9,
         sim_config=sim_config,
         chain_params=chain_params
     )
@@ -184,7 +182,6 @@ def run_topology_deep_analysis(
         num_points=range_points,
         comparison_relays=len(best_path)-2,
         num_qubits=wrapper.num_qubits,
-        link_capacity=1e9,
         sim_config=sim_config
     )
     plot_range_extension_protocols(scan_dists, range_results, len(best_path)-2, sim_config)
@@ -207,11 +204,11 @@ def run_topology_example():
     # Topology definition
     nodes = ['Alice', 'R1', 'R2', 'R3', 'R4', 'Bob']
     edges = [
-        ('Alice', 'R1', 50, 1e9), ('Alice', 'R2', 100, 1e9),
-        ('R1', 'R2', 30, 1e9), ('R1', 'R3', 80, 1e9),
-        ('R2', 'R3', 40, 1e9), ('R2', 'R4', 70, 1e9),
-        ('R3', 'Bob', 100, 1e9), ('R4', 'Bob', 40, 1e9),
-        ('R3', 'R4', 20, 1e9),
+        ('Alice', 'R1', 50), ('Alice', 'R2', 100),
+        ('R1', 'R2', 30), ('R1', 'R3', 80),
+        ('R2', 'R3', 40), ('R2', 'R4', 70),
+        ('R3', 'Bob', 100), ('R4', 'Bob', 40),
+        ('R3', 'R4', 20),
     ]
     # ==========================================
 
