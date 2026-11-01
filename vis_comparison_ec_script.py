@@ -9,6 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import hashlib
 from typing import List
+import gc
 
 # Setup proper imports
 current_dir = os.getcwd()
@@ -24,13 +25,25 @@ except ImportError:
     from ServerClientBB84.bb84_server_client import AliceServer, BobClient, QuantumChannel, Detector, Eve, APIClient
 
 # ---- Global plot styling for research paper ----
+# plt.rcParams.update({
+#     'font.size': 14,
+#     'axes.labelsize': 16,
+#     'axes.titlesize': 16,
+#     'xtick.labelsize': 12,
+#     'ytick.labelsize': 12,
+#     'legend.fontsize': 14,
+#     'figure.titlesize': 16,
+#     'figure.figsize': (10, 6),
+#     'lines.linewidth': 2,
+#     'lines.markersize': 8,
+# })
 plt.rcParams.update({
-    'font.size': 14,
-    'axes.labelsize': 16,
-    'axes.titlesize': 16,
-    'xtick.labelsize': 12,
-    'ytick.labelsize': 12,
-    'legend.fontsize': 14,
+    'font.size': 18,
+    'axes.labelsize': 22,
+    'axes.titlesize': 20,
+    'xtick.labelsize': 16,
+    'ytick.labelsize': 16,
+    'legend.fontsize': 18,
     'figure.titlesize': 16,
     'figure.figsize': (10, 6),
     'lines.linewidth': 2,
@@ -96,10 +109,18 @@ async def run_comparison_simulation(protocol="cascade", num_qubits=5000, optical
 async def run_multiple_simulations(protocol, num_qubits, optical_error_rate, runs, verbose=False):
     """Run simulations concurrently and compute the average."""
     # Use deterministic seeds starting from the notebook's default (44444)
-    tasks = [
-        run_comparison_simulation(protocol, num_qubits, optical_error_rate, verbose, seed_base=44444 + (i * 10)) 
-        for i in range(runs)
-    ]
+    # tasks = [
+    #     run_comparison_simulation(protocol, num_qubits, optical_error_rate, verbose, seed_base=44444 + (i * 10)) 
+    #     for i in range(runs)
+    # ]
+    # all_results = await asyncio.gather(*tasks)
+    sem = asyncio.Semaphore(10) # Limit concurrent tasks
+
+    async def bounded_run(i):
+        async with sem:
+            return await run_comparison_simulation(protocol, num_qubits, optical_error_rate, verbose, seed_base=44444 + (i * 10))
+
+    tasks = [bounded_run(i) for i in range(runs)]
     all_results = await asyncio.gather(*tasks)
     
     # Filter out failures
@@ -218,16 +239,16 @@ def plot_pa_protocol_comparison(
 
     # Runtime (left axis)
     l1, = ax1.plot(key_lengths, toe_times, "o-", color=color_toe,
-                   markersize=9, linewidth=2.2, label="Toeplitz(time)")
+                    label="Toeplitz(time)") #markersize=9, linewidth=2.2,
     l2, = ax1.plot(key_lengths, shake_times, "s-", color=color_shake,
-                   markersize=9, linewidth=2.2, label="SHAKE256(time)")
+                    label="SHAKE256(time)") #markersize=9, linewidth=2.2,
 
     # Seed bits (right axis)
     l3, = ax2.plot(key_lengths, toe_seed_bits, "^--", color=color_toe,
-                   alpha=0.55, markersize=9, linewidth=2.0,
+                   alpha=0.55, #markersize=9, linewidth=2.0,
                    label="Toeplitz(seed bits)")
     l4, = ax2.plot(key_lengths, shake_seed_bits, "v--", color=color_shake,
-                   alpha=0.55, markersize=9, linewidth=2.0,
+                   alpha=0.55, #markersize=9, linewidth=2.0,
                    label="SHAKE256(seed bits)")
 
     ax1.set_xscale("log")
@@ -282,7 +303,7 @@ def plot_pa_protocol_comparison(
 # new1-8000,1e-2,10iter,50llrparity
 async def main():
     parser = argparse.ArgumentParser(description="BB84 Reconciliation Comparison Script")
-    parser.add_argument("--runs", type=int, default=100, help="Number of Monte Carlo iterations to average per data point")
+    parser.add_argument("--runs", type=int, default=1, help="Number of Monte Carlo iterations to average per data point")
     parser.add_argument("--qubits", type=int, default=100000, help="Initial sequence size for QBER sweep")
     parser.add_argument("--outdir", type=str, default="figures/serverPlots_Finiteasym/new3/", help="Directory to save the resulting plots")
     parser.add_argument("--protocols", nargs='+', default=["cascade", "nr_ldpc_std",  "winnow", "polar"],  #"ldpc_rateadaptive",
@@ -334,20 +355,21 @@ async def main():
                     data_exp1[protocol]["skf"].append(float(np.mean(skfs)))
             
             print(f"  > {protocol}: avg QBER={avg_res['qber']*100:.2f}%" if avg_res else f"  > {protocol}: Failed")
-
+        # Add this to clear lingering memory before the next QBER point
+        gc.collect()
     # # ---------------- EXPERIMENT 2 ----------------
-    print("\n--- Starting Experiment 2: Computation Time vs Block Size ---")
-    block_sizes = [1000, 2500, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000]
-    FIXED_ERR = 0.02
-    data_exp2 = {p: [] for p in args.protocols}
+    # print("\n--- Starting Experiment 2: Computation Time vs Block Size ---")
+    # block_sizes = [1000, 2500, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000]
+    # FIXED_ERR = 0.02
+    # data_exp2 = {p: [] for p in args.protocols}
 
-    for size in block_sizes:
-        print(f"\n[Exp 2] Testing Block Size: {size}")
-        for protocol in args.protocols:
-            avg_res = await run_multiple_simulations(protocol, size, FIXED_ERR, args.runs)
-            exec_time = avg_res.get('exec_time', 0) if avg_res else 0
-            data_exp2[protocol].append(exec_time)
-            print(f"  > {protocol}: {exec_time:.4f} sec")
+    # for size in block_sizes:
+    #     print(f"\n[Exp 2] Testing Block Size: {size}")
+    #     for protocol in args.protocols:
+    #         avg_res = await run_multiple_simulations(protocol, size, FIXED_ERR, args.runs)
+    #         exec_time = avg_res.get('exec_time', 0) if avg_res else 0
+    #         data_exp2[protocol].append(exec_time)
+    #         print(f"  > {protocol}: {exec_time:.4f} sec")
 
 
     # ---------------- PLOTTING EXPORT ----------------
@@ -398,7 +420,7 @@ async def main():
             plt.plot(qber_arr[idx], val_arr[idx], styles[p]['marker'], color=styles[p]['color'], label=styles[p]['label'])
     plt.yscale('log')
     plt.xlabel('Measured QBER (%)')
-    plt.ylabel('Channel Uses (Round Trips) - Log Scale')
+    plt.ylabel('Channel Uses (Round Trips)')
     #plt.title('Communication Latency Comparison')
     # plt.legend(); 
     plt.grid(True, which="both", alpha=0.3)
@@ -409,17 +431,17 @@ async def main():
     plt.savefig(os.path.join(args.outdir,"plots_eps/3_latency_vs_qber.eps"), format='eps', dpi=600, bbox_inches='tight')
     plt.close()
 
-    # Plot 4: Scalability
-    plt.figure(figsize=(10, 6))
-    for p in args.protocols:
-        plt.plot(block_sizes, data_exp2[p], styles[p]['marker'], color=styles[p]['color'], label=styles[p]['label'])
-    plt.xlabel('Block Size (Bits)')
-    plt.ylabel('Execution Time (Seconds)')
-    #plt.title(f'Computational Scalability (Avg over {args.runs} runs, Err ~{FIXED_ERR})')
-    plt.legend(); plt.grid(True, alpha=0.3)
-    #plt.savefig(os.path.join(args.outdir, "4_execution_time_vs_blocksize.png"))
-    plt.savefig(os.path.join(args.outdir,"plots_eps/4_execution_time_vs_blocksize.eps"), format='eps', dpi=600, bbox_inches='tight')
-    plt.close()
+    # # Plot 4: Scalability
+    # plt.figure(figsize=(10, 6))
+    # for p in args.protocols:
+    #     plt.plot(block_sizes, data_exp2[p], styles[p]['marker'], color=styles[p]['color'], label=styles[p]['label'])
+    # plt.xlabel('Block Size (Bits)')
+    # plt.ylabel('Execution Time (Seconds)')
+    # #plt.title(f'Computational Scalability (Avg over {args.runs} runs, Err ~{FIXED_ERR})')
+    # plt.legend(); plt.grid(True, alpha=0.3)
+    # #plt.savefig(os.path.join(args.outdir, "4_execution_time_vs_blocksize.png"))
+    # plt.savefig(os.path.join(args.outdir,"plots_eps/4_execution_time_vs_blocksize.eps"), format='eps', dpi=600, bbox_inches='tight')
+    # plt.close()
 
     # Plot 5: Key Rate
     plt.figure(figsize=(10, 6))
@@ -485,7 +507,7 @@ async def main():
     #     key_lengths=(100,500, 1000,5000, 10000, 50000, 100000),
     #     qber=estimated_qber,
     #     security_parameter=10,
-    #     repeats=10,                       # averaged over 10 runs
+    #     repeats=1,                       # averaged over 10 runs
     #     outpath="figures/serverPlots_Finiteasym/plots_eps/pa_toeplitz_vs_shake256",
     #     save_eps=True,                    # writes .eps (600 dpi)
     #     save_png=False,                    # also writes .png
