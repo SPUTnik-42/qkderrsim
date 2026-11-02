@@ -39,7 +39,7 @@ except ImportError:
 # })
 plt.rcParams.update({
     'font.size': 18,
-    'axes.labelsize': 22,
+    'axes.labelsize': 18,
     'axes.titlesize': 20,
     'xtick.labelsize': 16,
     'ytick.labelsize': 16,
@@ -303,7 +303,7 @@ def plot_pa_protocol_comparison(
 # new1-8000,1e-2,10iter,50llrparity
 async def main():
     parser = argparse.ArgumentParser(description="BB84 Reconciliation Comparison Script")
-    parser.add_argument("--runs", type=int, default=1, help="Number of Monte Carlo iterations to average per data point")
+    parser.add_argument("--runs", type=int, default=75, help="Number of Monte Carlo iterations to average per data point")
     parser.add_argument("--qubits", type=int, default=100000, help="Initial sequence size for QBER sweep")
     parser.add_argument("--outdir", type=str, default="figures/serverPlots_Finiteasym/new3/", help="Directory to save the resulting plots")
     parser.add_argument("--protocols", nargs='+', default=["cascade", "nr_ldpc_std",  "winnow", "polar"],  #"ldpc_rateadaptive",
@@ -357,19 +357,19 @@ async def main():
             print(f"  > {protocol}: avg QBER={avg_res['qber']*100:.2f}%" if avg_res else f"  > {protocol}: Failed")
         # Add this to clear lingering memory before the next QBER point
         gc.collect()
-    # # ---------------- EXPERIMENT 2 ----------------
-    # print("\n--- Starting Experiment 2: Computation Time vs Block Size ---")
-    # block_sizes = [1000, 2500, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000]
-    # FIXED_ERR = 0.02
-    # data_exp2 = {p: [] for p in args.protocols}
+    # ---------------- EXPERIMENT 2 ----------------
+    print("\n--- Starting Experiment 2: Computation Time vs Block Size ---")
+    block_sizes = [1000, 2500, 5000, 10000, 20000, 50000, 100000, 200000, 500000, 1000000]
+    FIXED_ERR = 0.02
+    data_exp2 = {p: [] for p in args.protocols}
 
-    # for size in block_sizes:
-    #     print(f"\n[Exp 2] Testing Block Size: {size}")
-    #     for protocol in args.protocols:
-    #         avg_res = await run_multiple_simulations(protocol, size, FIXED_ERR, args.runs)
-    #         exec_time = avg_res.get('exec_time', 0) if avg_res else 0
-    #         data_exp2[protocol].append(exec_time)
-    #         print(f"  > {protocol}: {exec_time:.4f} sec")
+    for size in block_sizes:
+        print(f"\n[Exp 2] Testing Block Size: {size}")
+        for protocol in args.protocols:
+            avg_res = await run_multiple_simulations(protocol, size, FIXED_ERR, args.runs)
+            exec_time = avg_res.get('exec_time', 0) if avg_res else 0
+            data_exp2[protocol].append(exec_time)
+            print(f"  > {protocol}: {exec_time:.4f} sec")
 
 
     # ---------------- PLOTTING EXPORT ----------------
@@ -403,7 +403,7 @@ async def main():
     plt.xlabel('Measured QBER (%)')
     plt.ylabel(r'Reconciliation Efficiency $f_{EC}$')
     #plt.title('Protocol Inefficiency')
-    plt.legend(fontsize=9)
+    plt.legend()#fontsize=9)
     plt.ylim(0.8, 3)
     plt.grid(True, alpha=0.3)
     #plt.savefig(os.path.join(args.outdir, "2_efficiency_vs_qber.png"))
@@ -422,26 +422,26 @@ async def main():
     plt.xlabel('Measured QBER (%)')
     plt.ylabel('Channel Uses (Round Trips)')
     #plt.title('Communication Latency Comparison')
-    # plt.legend(); 
+    plt.legend(); 
     plt.grid(True, which="both", alpha=0.3)
-    plt.legend(
-        fontsize=9,           # text size inside the box
-    )
+    # plt.legend(
+    #     fontsize=9,           # text size inside the box
+    # )
     #plt.savefig(os.path.join(args.outdir, "3_latency_vs_qber.png"))
     plt.savefig(os.path.join(args.outdir,"plots_eps/3_latency_vs_qber.eps"), format='eps', dpi=600, bbox_inches='tight')
     plt.close()
 
-    # # Plot 4: Scalability
-    # plt.figure(figsize=(10, 6))
-    # for p in args.protocols:
-    #     plt.plot(block_sizes, data_exp2[p], styles[p]['marker'], color=styles[p]['color'], label=styles[p]['label'])
-    # plt.xlabel('Block Size (Bits)')
-    # plt.ylabel('Execution Time (Seconds)')
-    # #plt.title(f'Computational Scalability (Avg over {args.runs} runs, Err ~{FIXED_ERR})')
-    # plt.legend(); plt.grid(True, alpha=0.3)
-    # #plt.savefig(os.path.join(args.outdir, "4_execution_time_vs_blocksize.png"))
-    # plt.savefig(os.path.join(args.outdir,"plots_eps/4_execution_time_vs_blocksize.eps"), format='eps', dpi=600, bbox_inches='tight')
-    # plt.close()
+    # Plot 4: Scalability
+    plt.figure(figsize=(10, 6))
+    for p in args.protocols:
+        plt.plot(block_sizes, data_exp2[p], styles[p]['marker'], color=styles[p]['color'], label=styles[p]['label'])
+    plt.xlabel('Block Size (Bits)')
+    plt.ylabel('Execution Time (Seconds)')
+    #plt.title(f'Computational Scalability (Avg over {args.runs} runs, Err ~{FIXED_ERR})')
+    plt.legend(); plt.grid(True, alpha=0.3)
+    #plt.savefig(os.path.join(args.outdir, "4_execution_time_vs_blocksize.png"))
+    plt.savefig(os.path.join(args.outdir,"plots_eps/4_execution_time_vs_blocksize.eps"), format='eps', dpi=600, bbox_inches='tight')
+    plt.close()
 
     # Plot 5: Key Rate
     plt.figure(figsize=(10, 6))
