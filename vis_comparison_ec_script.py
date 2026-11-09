@@ -303,7 +303,7 @@ def plot_pa_protocol_comparison(
 # new1-8000,1e-2,10iter,50llrparity
 async def main():
     parser = argparse.ArgumentParser(description="BB84 Reconciliation Comparison Script")
-    parser.add_argument("--runs", type=int, default=75, help="Number of Monte Carlo iterations to average per data point")
+    parser.add_argument("--runs", type=int, default=1, help="Number of Monte Carlo iterations to average per data point")
     parser.add_argument("--qubits", type=int, default=100000, help="Initial sequence size for QBER sweep")
     parser.add_argument("--outdir", type=str, default="figures/serverPlots_Finiteasym/new3/", help="Directory to save the resulting plots")
     parser.add_argument("--protocols", nargs='+', default=["cascade", "nr_ldpc_std",  "winnow", "polar"],  #"ldpc_rateadaptive",

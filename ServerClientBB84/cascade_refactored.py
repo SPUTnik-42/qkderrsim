@@ -1,8 +1,16 @@
 
 import math
-from prng import PRNG
+from pathlib import Path
+import sys
+try:
+    from prng import PRNG
+except ImportError:
+    PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent
+    sys.path.insert(0, str(PROJECT_ROOT))
+    from ServerClientBB84.prng import PRNG
 import asyncio
 from typing import List, Protocol, Any
+
 
 class ParityOracle(Protocol):
     async def get_parity(self, indices: List[int]) -> int:
